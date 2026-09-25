@@ -21,3 +21,13 @@ button:hover, input[type=submit]:hover { background: #3a78e0; border-color: #3a7
 .flash-error { background: #c333; border: 1px solid #c336; color: #b22; }
 .flash-info { background: #4c8bf533; border: 1px solid #4c8bf566; }
 a { color: #4c8bf5; }
+.gh-badge {
+  position: fixed; bottom: 1rem; right: 1rem;
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .4rem .7rem; font-size: .85rem; line-height: 1;
+  text-decoration: none; color: inherit;
+  background: #8881; border: 1px solid #8884; border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+.gh-badge:hover { background: #8883; border-color: #8886; }
+.gh-badge svg { display: block; }
