@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ deck.name }} — Cards — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ deck.name }}</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+  </div>
+</div>
+
+<h2>Cards ({{ cards|length }})</h2>
+
+{% if cards %}
+<ul class="card-list">
+  {% for c in cards %}
+  <li class="card-row">
+    <div class="card-sides">
+      <div class="card-side"><span class="card-label">Q</span> <span class="card-text">{{ c.question }}</span></div>
+      <div class="card-side"><span class="card-label">A</span> <span class="card-text">{{ c.answer }}</span></div>
+    </div>
+    <div class="card-actions">
+      <a class="btn-secondary" href="{{ url_for('card_edit', card_id=c.id) }}">Edit</a>
+      <form method="post" action="{{ url_for('card_delete', card_id=c.id) }}" class="inline"
+            onsubmit="return confirm('Delete this card?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn-danger">Delete</button>
+      </form>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty-state">
+  <p>This deck has no cards yet. Add one below.</p>
+</div>
+{% endif %}
+
+<h2>Add a card</h2>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  <p>
+    {{ form.question.label }}<br>
+    {{ form.question(rows=2, maxlength=500, autofocus=True) }}
+    {% for e in form.question.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <p>
+    {{ form.answer.label }}<br>
+    {{ form.answer(rows=2, maxlength=500) }}
+    {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <p>{{ form.submit }}</p>
+</form>
+{% endblock %}

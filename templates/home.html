@@ -22,6 +22,7 @@
     </div>
     <div class="deck-actions">
       <a class="btn" href="#" aria-disabled="true" title="Coming in Milestone 4">Study</a>
+      <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}">Cards</a>
       <a class="btn-secondary" href="{{ url_for('deck_edit', deck_id=row.deck.id) }}">Rename</a>
       <a class="btn-secondary" href="{{ url_for('deck_delete', deck_id=row.deck.id) }}">Delete</a>
     </div>

@@ -15,7 +15,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event, func
 from sqlalchemy.engine import Engine
-from wtforms import StringField, PasswordField, SubmitField
+from wtforms import StringField, PasswordField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, Regexp, EqualTo
 
 MAX_USERS = int(os.environ.get("CRAZY_CRAM_MAX_USERS", "30"))
@@ -222,6 +222,28 @@ def _owned_deck_or_404(deck_id):
     return deck
 
 
+def _owned_card_or_404(card_id):
+    card = db.session.get(Card, card_id)
+    if card is None or card.deck.user_id != current_user.id:
+        from flask import abort
+        abort(404)
+    return card
+
+
+class CardForm(FlaskForm):
+    question = TextAreaField(
+        "Question",
+        validators=[DataRequired(), Length(min=1, max=CARD_SIDE_MAX)],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
+    )
+    answer = TextAreaField(
+        "Answer",
+        validators=[DataRequired(), Length(min=1, max=CARD_SIDE_MAX)],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
+    )
+    submit = SubmitField("Save card")
+
+
 @app.route("/")
 def index():
     if current_user.is_authenticated:
@@ -332,6 +354,50 @@ def deck_delete(deck_id):
         flash(f"Deck “{deck.name}” deleted.", "info")
         return redirect(url_for("home"))
     return render_template("deck_delete.html", deck=deck)
+
+
+@app.route("/decks/<int:deck_id>/cards", methods=["GET", "POST"])
+@login_required
+def deck_cards(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    form = CardForm()
+    if form.validate_on_submit():
+        card = Card(deck_id=deck.id, question=form.question.data, answer=form.answer.data)
+        db.session.add(card)
+        db.session.commit()
+        flash("Card added.", "info")
+        return redirect(url_for("deck_cards", deck_id=deck.id))
+    cards = (
+        Card.query.filter_by(deck_id=deck.id)
+        .order_by(Card.created_at.asc(), Card.id.asc())
+        .all()
+    )
+    return render_template("deck_cards.html", deck=deck, cards=cards, form=form)
+
+
+@app.route("/cards/<int:card_id>/edit", methods=["GET", "POST"])
+@login_required
+def card_edit(card_id):
+    card = _owned_card_or_404(card_id)
+    form = CardForm(obj=card)
+    if form.validate_on_submit():
+        card.question = form.question.data
+        card.answer = form.answer.data
+        db.session.commit()
+        flash("Card updated.", "info")
+        return redirect(url_for("deck_cards", deck_id=card.deck_id))
+    return render_template("card_form.html", form=form, card=card)
+
+
+@app.route("/cards/<int:card_id>/delete", methods=["POST"])
+@login_required
+def card_delete(card_id):
+    card = _owned_card_or_404(card_id)
+    deck_id = card.deck_id
+    db.session.delete(card)
+    db.session.commit()
+    flash("Card deleted.", "info")
+    return redirect(url_for("deck_cards", deck_id=deck_id))
 
 
 if __name__ == "__main__":

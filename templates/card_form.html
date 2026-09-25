@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Edit card — Crazy-Cram{% endblock %}
+{% block content %}
+<h1>Edit card</h1>
+<p class="muted">Deck: <a href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">{{ card.deck.name }}</a></p>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  <p>
+    {{ form.question.label }}<br>
+    {{ form.question(rows=3, maxlength=500, autofocus=True) }}
+    {% for e in form.question.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <p>
+    {{ form.answer.label }}<br>
+    {{ form.answer(rows=3, maxlength=500) }}
+    {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <p>
+    {{ form.submit }}
+    <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">Cancel</a>
+  </p>
+</form>
+{% endblock %}

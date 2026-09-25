@@ -6,11 +6,12 @@ h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
 h2 { margin: 0 0 1.25rem; font-weight: 500; font-size: 1.15rem; opacity: .8; }
 form p { margin: 0 0 1rem; }
 label { display: inline-block; margin-bottom: .25rem; font-size: .9rem; }
-input[type=text], input[type=password] {
+input[type=text], input[type=password], textarea {
   width: 100%; padding: .55rem .7rem; font: inherit;
   border: 1px solid #8886; border-radius: .375rem; background: transparent; color: inherit;
 }
-input:focus { outline: 2px solid #4c8bf5; outline-offset: 1px; }
+textarea { resize: vertical; min-height: 3rem; font-family: inherit; }
+input:focus, textarea:focus { outline: 2px solid #4c8bf5; outline-offset: 1px; }
 button, input[type=submit] {
   padding: .55rem 1rem; font: inherit; cursor: pointer;
   border: 1px solid #4c8bf5; background: #4c8bf5; color: #fff; border-radius: .375rem;
@@ -79,3 +80,20 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   background: #c3413a; border-color: #c3413a; color: #fff;
 }
 .btn-danger:hover, a.btn-danger:hover { background: #a5342e; border-color: #a5342e; }
+
+.muted { opacity: .7; font-size: .9rem; }
+
+.card-list { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+.card-row {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1rem; padding: .75rem 1rem; margin-bottom: .5rem;
+  border: 1px solid #8884; border-radius: .5rem;
+}
+.card-sides { flex: 1; display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.card-side { display: flex; gap: .5rem; align-items: baseline; }
+.card-label {
+  font-size: .75rem; font-weight: 700; opacity: .55;
+  min-width: 1rem; text-align: right;
+}
+.card-text { white-space: pre-wrap; word-break: break-word; }
+.card-actions { display: flex; gap: .5rem; flex-wrap: wrap; flex-shrink: 0; }
