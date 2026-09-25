@@ -48,7 +48,15 @@ def test_alembic_version_stamped_at_head(app):
         app.db.text("SELECT version_num FROM alembic_version")
     ).fetchone()
     assert row is not None
-    assert row[0] == "0002_flashcards"
+    # Should equal the current head of the migrations directory — read it
+    # dynamically so bumping the chain doesn't rot this test.
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+    from pathlib import Path
+    cfg = Config()
+    cfg.set_main_option("script_location", str(Path(__file__).resolve().parent.parent / "migrations"))
+    head = ScriptDirectory.from_config(cfg).get_current_head()
+    assert row[0] == head
 
 
 # -- Model round-trip --------------------------------------------------

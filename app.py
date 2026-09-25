@@ -211,6 +211,34 @@ class LoginForm(FlaskForm):
     submit = SubmitField("Log in")
 
 
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField(
+        "Current password",
+        validators=[DataRequired(), Length(max=128)],
+    )
+    new_password = PasswordField(
+        "New password",
+        validators=[DataRequired(), Length(min=8, max=128)],
+    )
+    confirm = PasswordField(
+        "Confirm new password",
+        validators=[DataRequired(), EqualTo("new_password", message="Passwords must match.")],
+    )
+    submit = SubmitField("Change password")
+
+
+class DeleteAccountForm(FlaskForm):
+    confirm_username = StringField(
+        "Type your username to confirm",
+        validators=[DataRequired(), Length(max=32)],
+    )
+    password = PasswordField(
+        "Password",
+        validators=[DataRequired(), Length(max=128)],
+    )
+    submit = SubmitField("Delete my account")
+
+
 class DeckForm(FlaskForm):
     name = StringField(
         "Deck name",
@@ -698,6 +726,64 @@ def study_restart(session_id):
         ))
     db.session.commit()
     return redirect(url_for("study_session", session_id=s.id))
+
+
+# --- Account self-service --------------------------------------------
+
+@app.route("/account", methods=["GET"])
+@login_required
+def account():
+    return render_template(
+        "account.html",
+        pw_form=ChangePasswordForm(),
+        del_form=DeleteAccountForm(),
+    )
+
+
+@app.route("/account/password", methods=["POST"])
+@login_required
+def account_change_password():
+    pw_form = ChangePasswordForm()
+    del_form = DeleteAccountForm()
+    if pw_form.validate_on_submit():
+        if not bcrypt.check_password_hash(
+            current_user.password_hash, pw_form.current_password.data
+        ):
+            flash("Current password is incorrect.", "error")
+            return render_template("account.html", pw_form=pw_form, del_form=del_form)
+        current_user.password_hash = bcrypt.generate_password_hash(
+            pw_form.new_password.data
+        ).decode("utf-8")
+        db.session.commit()
+        logout_user()
+        flash("Password changed — please log in again.", "success")
+        return redirect(url_for("login"))
+    return render_template("account.html", pw_form=pw_form, del_form=del_form)
+
+
+@app.route("/account/delete", methods=["POST"])
+@login_required
+def account_delete():
+    pw_form = ChangePasswordForm()
+    del_form = DeleteAccountForm()
+    if del_form.validate_on_submit():
+        typed = del_form.confirm_username.data.strip()
+        if typed.lower() != current_user.username.lower():
+            flash("Typed username doesn't match — account not deleted.", "error")
+            return render_template("account.html", pw_form=pw_form, del_form=del_form)
+        if not bcrypt.check_password_hash(
+            current_user.password_hash, del_form.password.data
+        ):
+            flash("Password is incorrect — account not deleted.", "error")
+            return render_template("account.html", pw_form=pw_form, del_form=del_form)
+
+        user = db.session.get(User, current_user.id)
+        logout_user()
+        db.session.delete(user)
+        db.session.commit()
+        flash("Your account has been deleted.", "success")
+        return redirect(url_for("login"))
+    return render_template("account.html", pw_form=pw_form, del_form=del_form)
 
 
 if __name__ == "__main__":

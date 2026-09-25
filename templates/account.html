@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Account — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Account</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+  </div>
+</div>
+
+<p class="muted">Signed in as <strong>{{ current_user.username }}</strong>.</p>
+
+<section class="account-panel">
+  <h2>Change password</h2>
+  <form method="post" action="{{ url_for('account_change_password') }}" novalidate>
+    {{ pw_form.hidden_tag() }}
+    <p>
+      {{ pw_form.current_password.label }}<br>
+      {{ pw_form.current_password(autocomplete="current-password") }}
+      {% for e in pw_form.current_password.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+    <p>
+      {{ pw_form.new_password.label }}<br>
+      {{ pw_form.new_password(autocomplete="new-password") }}
+      {% for e in pw_form.new_password.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+    <p>
+      {{ pw_form.confirm.label }}<br>
+      {{ pw_form.confirm(autocomplete="new-password") }}
+      {% for e in pw_form.confirm.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+    <p>{{ pw_form.submit(class_="btn") }}</p>
+  </form>
+</section>
+
+<section class="account-panel danger">
+  <h2>Delete account</h2>
+  <p class="muted">
+    Permanently deletes your account and every deck, card, study session,
+    and result you've made. This cannot be undone.
+  </p>
+  <form method="post" action="{{ url_for('account_delete') }}" novalidate>
+    {{ del_form.hidden_tag() }}
+    <p>
+      {{ del_form.confirm_username.label }}<br>
+      {{ del_form.confirm_username(autocomplete="off") }}
+      {% for e in del_form.confirm_username.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+    <p>
+      {{ del_form.password.label }}<br>
+      {{ del_form.password(autocomplete="current-password") }}
+      {% for e in del_form.password.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+    <p>{{ del_form.submit(class_="btn-danger") }}</p>
+  </form>
+</section>
+{% endblock %}

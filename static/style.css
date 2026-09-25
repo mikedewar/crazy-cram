@@ -21,6 +21,7 @@ button:hover, input[type=submit]:hover { background: #3a78e0; border-color: #3a7
 .flash { padding: .6rem .8rem; margin: 0 0 1rem; border-radius: .375rem; }
 .flash-error { background: #c333; border: 1px solid #c336; color: #b22; }
 .flash-info { background: #4c8bf533; border: 1px solid #4c8bf566; }
+.flash-success { background: #2a8a4b33; border: 1px solid #2a8a4b66; color: #1e6e3a; }
 a { color: #4c8bf5; }
 .gh-badge {
   position: fixed; bottom: 1rem; right: 1rem;
@@ -162,3 +163,13 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 .diff-eq { }
 .diff-ins { background: #4a9d5f66; color: inherit; border-radius: 2px; }
 .diff-del { background: #c3413a66; text-decoration: line-through; color: inherit; border-radius: 2px; }
+
+/* --- Account ------------------------------------------------------- */
+
+.account-panel {
+  border: 1px solid #8884; border-radius: .5rem;
+  padding: 1rem 1.25rem; margin: 1.5rem 0;
+}
+.account-panel h2 { margin-top: 0; font-size: 1.1rem; }
+.account-panel.danger { border-color: #c3413a55; }
+.account-panel.danger h2 { color: #c3413a; }

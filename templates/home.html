@@ -5,6 +5,7 @@
   <h1>Your decks</h1>
   <div class="page-head-actions">
     <span class="who">Signed in as <strong>{{ user.username }}</strong>.</span>
+    <a class="btn-secondary" href="{{ url_for('account') }}">Account</a>
     <form method="post" action="{{ url_for('logout') }}" class="inline">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit" class="btn-secondary">Log out</button>
