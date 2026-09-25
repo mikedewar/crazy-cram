@@ -10,8 +10,9 @@ from alembic import context
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
-fileConfig(config.config_file_name)
+# disable_existing_loggers=False so alembic's config doesn't silently
+# disable the app's own loggers when `flask db upgrade` runs in-process.
+fileConfig(config.config_file_name, disable_existing_loggers=False)
 logger = logging.getLogger('alembic.env')
 
 

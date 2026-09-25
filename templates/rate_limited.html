@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Too many requests — Crazy-Cram{% endblock %}
+{% block content %}
+<h1>Slow down</h1>
+<h2>Too many requests</h2>
+<p class="muted">You've made too many attempts in a short window. Wait a minute and try again.</p>
+<p class="muted">Limit: {{ detail }}.</p>
+<p><a href="{{ url_for('login') }}">Back to log in</a></p>
+{% endblock %}

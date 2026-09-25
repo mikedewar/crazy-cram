@@ -1,14 +1,19 @@
 import difflib
+import json
+import logging
 import os
 import random
 import re
 import secrets
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, render_template, redirect, url_for, flash, request, abort
+from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_bcrypt import Bcrypt
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 )
@@ -16,7 +21,7 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
-from sqlalchemy import event, func
+from sqlalchemy import event, func, text
 from sqlalchemy.engine import Engine
 from wtforms import (
     StringField, PasswordField, SubmitField, TextAreaField,
@@ -27,6 +32,12 @@ from wtforms.validators import DataRequired, Length, Regexp, EqualTo, NumberRang
 MAX_USERS = int(os.environ.get("CRAZY_CRAM_MAX_USERS", "30"))
 INSTANCE_DIR = Path(__file__).parent / "instance"
 INSTANCE_DIR.mkdir(exist_ok=True)
+
+_VERSION_FILE = Path(__file__).parent / "VERSION"
+VERSION = (
+    os.environ.get("CRAZY_CRAM_VERSION")
+    or (_VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "0.0.0")
+)
 
 app = Flask(__name__, instance_path=str(INSTANCE_DIR))
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
@@ -62,6 +73,46 @@ bcrypt = Bcrypt(app)
 csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
+
+# --- Rate limiting ---------------------------------------------------
+# In-memory backend is fine at 30 users on one gunicorn instance — no
+# cross-worker sharing needed since traffic is negligible. If we ever
+# horizontally scale, swap storage_uri for redis://.
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    storage_uri=os.environ.get("CRAZY_CRAM_LIMITER_STORAGE", "memory://"),
+    default_limits=[],
+    headers_enabled=True,
+)
+
+
+@app.errorhandler(429)
+def _rate_limited(e):
+    if request.accept_mimetypes.best == "application/json":
+        return jsonify(error="rate_limited", detail=str(e.description)), 429
+    return render_template("rate_limited.html", detail=str(e.description)), 429
+
+
+# --- Structured event logging ---------------------------------------
+# One JSON line per event on stderr. Gunicorn/systemd captures it into
+# the journal; from there, `journalctl -u crazy-cram` gives grep-able
+# audit trail without pulling in a logging framework.
+_log_handler = logging.StreamHandler(sys.stderr)
+_log_handler.setFormatter(logging.Formatter("%(message)s"))
+app.logger.handlers = [_log_handler]
+app.logger.setLevel(logging.INFO)
+app.logger.propagate = False
+
+
+def _log_event(name, **fields):
+    payload = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "event": name,
+        "ip": request.remote_addr if request else None,
+        **fields,
+    }
+    app.logger.info(json.dumps(payload, separators=(",", ":"), default=str))
 
 
 class User(UserMixin, db.Model):
@@ -284,6 +335,7 @@ def index():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     if current_user.is_authenticated:
         return redirect(url_for("home"))
@@ -292,27 +344,34 @@ def login():
         user = User.query.filter(func.lower(User.username) == form.username.data.lower()).first()
         if user and bcrypt.check_password_hash(user.password_hash, form.password.data):
             login_user(user)
+            _log_event("login_success", user_id=user.id, username=user.username)
             return redirect(url_for("home"))
+        # Same log shape for bad-user and bad-password: don't leak which.
+        _log_event("login_fail", username=form.username.data)
         flash("Invalid username or password.", "error")
     return render_template("login.html", form=form)
 
 
 @app.route("/register", methods=["GET", "POST"])
+@limiter.limit("5 per hour", methods=["POST"])
 def register():
     if current_user.is_authenticated:
         return redirect(url_for("home"))
     form = RegisterForm()
     if form.validate_on_submit():
         if db.session.query(func.count(User.id)).scalar() >= MAX_USERS:
+            _log_event("register_fail", reason="user_cap")
             flash(f"Registration closed — user cap ({MAX_USERS}) reached.", "error")
             return render_template("register.html", form=form)
 
         invite = InviteCode.query.filter_by(code=form.invite_code.data.strip()).first()
         if invite is None or invite.is_used:
+            _log_event("register_fail", reason="bad_invite")
             flash("Invalid or already-used invite code.", "error")
             return render_template("register.html", form=form)
 
         if User.query.filter(func.lower(User.username) == form.username.data.lower()).first():
+            _log_event("register_fail", reason="dupe_username", username=form.username.data)
             flash("That username is taken.", "error")
             return render_template("register.html", form=form)
 
@@ -324,6 +383,7 @@ def register():
         invite.used_by = user.id
         db.session.commit()
         login_user(user)
+        _log_event("register_success", user_id=user.id, username=user.username)
         return redirect(url_for("home"))
     return render_template("register.html", form=form)
 
@@ -331,6 +391,7 @@ def register():
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
+    _log_event("logout", user_id=current_user.id, username=current_user.username)
     logout_user()
     return redirect(url_for("login"))
 
@@ -571,6 +632,11 @@ def study_config(deck_id):
                 position=i,
             ))
         db.session.commit()
+        _log_event(
+            "study_session_start",
+            user_id=current_user.id, session_id=s.id,
+            deck_id=deck.id, n_cards=n, shuffled=shuffled,
+        )
         return redirect(url_for("study_session", session_id=s.id))
 
     return render_template(
@@ -649,6 +715,11 @@ def _finalize_session(s):
     s.score = int(score or 0)
     s.finished_at = datetime.now(timezone.utc)
     db.session.commit()
+    _log_event(
+        "study_session_finish",
+        user_id=s.user_id, session_id=s.id, deck_id=s.deck_id,
+        score=s.score, n_cards=s.n_cards,
+    )
 
 
 @app.route("/sessions/<int:session_id>/results")
@@ -725,7 +796,26 @@ def study_restart(session_id):
             position=i,
         ))
     db.session.commit()
+    _log_event(
+        "study_session_start",
+        user_id=current_user.id, session_id=s.id,
+        deck_id=deck.id, n_cards=n, shuffled=old.shuffled,
+        restart_of=old.id,
+    )
     return redirect(url_for("study_session", session_id=s.id))
+
+
+# --- Health check -----------------------------------------------------
+
+@app.route("/health")
+@limiter.exempt
+def health():
+    """Liveness + readiness probe: returns 200 iff the DB is reachable."""
+    try:
+        db.session.execute(text("SELECT 1")).scalar()
+    except Exception as e:  # pragma: no cover — verified via mocked engine failure
+        return jsonify(status="error", version=VERSION, db="unreachable", detail=str(e)), 503
+    return jsonify(status="ok", version=VERSION, db="ok"), 200
 
 
 # --- Account self-service --------------------------------------------
@@ -755,6 +845,7 @@ def account_change_password():
             pw_form.new_password.data
         ).decode("utf-8")
         db.session.commit()
+        _log_event("account_password_change", user_id=current_user.id, username=current_user.username)
         logout_user()
         flash("Password changed — please log in again.", "success")
         return redirect(url_for("login"))
@@ -778,9 +869,11 @@ def account_delete():
             return render_template("account.html", pw_form=pw_form, del_form=del_form)
 
         user = db.session.get(User, current_user.id)
+        deleted_id, deleted_name = user.id, user.username
         logout_user()
         db.session.delete(user)
         db.session.commit()
+        _log_event("account_delete", user_id=deleted_id, username=deleted_name)
         flash("Your account has been deleted.", "success")
         return redirect(url_for("login"))
     return render_template("account.html", pw_form=pw_form, del_form=del_form)
