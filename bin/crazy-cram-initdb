@@ -1,11 +1,47 @@
 #!/usr/bin/env bash
-# One-off: create SQLite schema.
+# Bring the DB schema up to head.
+# - Fresh DB: creates every table by running all migrations.
+# - Legacy v0 DB (user + invite_code exist, no alembic_version): stamps at
+#   the baseline revision, then applies the delta migration.
+# - Already-migrated DB: no-op.
+# Safe to run repeatedly (systemd ExecStartPre).
 set -euo pipefail
+
 APP_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 cd "$APP_DIR"
-"$APP_DIR/venv/bin/python" -c "
-from app import app, db
-with app.app_context():
-    db.create_all()
-    print('OK')
-"
+
+export FLASK_APP="app.py"
+PY="$APP_DIR/venv/bin/python"
+FLASK="$APP_DIR/venv/bin/flask"
+
+# Detect a legacy v0 DB that pre-dates Alembic (has tables but no alembic_version).
+LEGACY=$("$PY" - <<'PY'
+import os, sqlite3, sys
+from pathlib import Path
+uri = os.environ.get("CRAZY_CRAM_DATABASE_URI")
+if uri:
+    # sqlite:///relative or sqlite:////absolute
+    if uri.startswith("sqlite:////"):
+        path = "/" + uri[len("sqlite:////"):]
+    elif uri.startswith("sqlite:///"):
+        path = uri[len("sqlite:///"):]
+    else:
+        sys.exit(0)  # non-sqlite: assume ops handles it
+else:
+    path = str(Path("instance/crazy-cram.db"))
+if not Path(path).exists():
+    sys.exit(0)
+con = sqlite3.connect(path)
+tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+if "user" in tables and "invite_code" in tables and "alembic_version" not in tables:
+    print("legacy")
+PY
+)
+
+if [ "$LEGACY" = "legacy" ]; then
+    echo "Legacy v0 DB detected — stamping at 0001_baseline_v0."
+    "$FLASK" db stamp 0001_baseline_v0
+fi
+
+"$FLASK" db upgrade
+echo "OK"

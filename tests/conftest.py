@@ -23,7 +23,9 @@ def app(tmp_path, monkeypatch):
         SESSION_COOKIE_SECURE=False,
     )
     with app_module.app.app_context():
-        app_module.db.create_all()
+        # Bring the schema up via the real migration chain — this is what prod runs.
+        from flask_migrate import upgrade as _flask_db_upgrade
+        _flask_db_upgrade()
         yield app_module
 
 

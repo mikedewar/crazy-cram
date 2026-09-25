@@ -9,10 +9,12 @@ from flask_bcrypt import Bcrypt
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 )
+from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
-from sqlalchemy import func
+from sqlalchemy import event, func
+from sqlalchemy.engine import Engine
 from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import DataRequired, Length, Regexp, EqualTo
 
@@ -39,6 +41,17 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 db = SQLAlchemy(app)
+migrate = Migrate(app, db, directory=str(Path(__file__).parent / "migrations"))
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_enable_fk(dbapi_connection, connection_record):
+    # SQLite ships with FKs off by default; cascade/on-delete only work with them on.
+    import sqlite3
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cur = dbapi_connection.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
 bcrypt = Bcrypt(app)
 csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
@@ -62,6 +75,96 @@ class InviteCode(db.Model):
     @property
     def is_used(self):
         return self.used_at is not None
+
+
+CARD_SIDE_MAX = 500
+DECK_NAME_MAX = 120
+
+
+class Deck(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    name = db.Column(db.String(DECK_NAME_MAX), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = db.relationship("User", backref=db.backref("decks", cascade="all, delete-orphan", passive_deletes=True))
+    cards = db.relationship(
+        "Card",
+        backref="deck",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    sessions = db.relationship(
+        "StudySession",
+        backref="deck",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class Card(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    deck_id = db.Column(
+        db.Integer, db.ForeignKey("deck.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    question = db.Column(db.String(CARD_SIDE_MAX), nullable=False)
+    answer = db.Column(db.String(CARD_SIDE_MAX), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+
+class StudySession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    deck_id = db.Column(
+        db.Integer, db.ForeignKey("deck.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    n_cards = db.Column(db.Integer, nullable=False)
+    shuffled = db.Column(db.Boolean, nullable=False, default=True)
+    started_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    finished_at = db.Column(db.DateTime, nullable=True)
+    score = db.Column(db.Integer, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("study_sessions", cascade="all, delete-orphan", passive_deletes=True))
+    attempts = db.relationship(
+        "StudyAttempt",
+        backref="session",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="StudyAttempt.position",
+    )
+
+
+class StudyAttempt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(
+        db.Integer, db.ForeignKey("study_session.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    # nullable — a card may be deleted after the attempt was recorded;
+    # snapshot columns keep the historical record honest.
+    card_id = db.Column(
+        db.Integer, db.ForeignKey("card.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+    card_snapshot_q = db.Column(db.String(CARD_SIDE_MAX), nullable=False)
+    card_snapshot_a = db.Column(db.String(CARD_SIDE_MAX), nullable=False)
+    student_answer = db.Column(db.String(CARD_SIDE_MAX), nullable=True)
+    is_correct = db.Column(db.Boolean, nullable=True)
+    position = db.Column(db.Integer, nullable=False)
+    attempted_at = db.Column(db.DateTime, nullable=True)
 
 
 @login_manager.user_loader
