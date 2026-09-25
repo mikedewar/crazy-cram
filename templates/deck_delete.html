@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Delete deck — Crazy-Cram{% endblock %}
+{% block content %}
+<h1>Delete deck</h1>
+<p>Really delete <strong>{{ deck.name }}</strong>?</p>
+<p>All cards in this deck and every past study session for it will be deleted too. This can’t be undone.</p>
+<form method="post">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <p>
+    <button type="submit" class="btn-danger">Delete deck</button>
+    <a class="btn-secondary" href="{{ url_for('home') }}">Cancel</a>
+  </p>
+</form>
+{% endblock %}

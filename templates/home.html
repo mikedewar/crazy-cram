@@ -1,10 +1,39 @@
 {% extends "base.html" %}
-{% block title %}Crazy-Cram{% endblock %}
+{% block title %}Your decks — Crazy-Cram{% endblock %}
 {% block content %}
-<h1>Crazy-Cram</h1>
-<p>Signed in as <strong>{{ user.username }}</strong>.</p>
-<form method="post" action="{{ url_for('logout') }}">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <button type="submit">Log out</button>
-</form>
+<div class="page-head">
+  <h1>Your decks</h1>
+  <div class="page-head-actions">
+    <span class="who">Signed in as <strong>{{ user.username }}</strong>.</span>
+    <form method="post" action="{{ url_for('logout') }}" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn-secondary">Log out</button>
+    </form>
+  </div>
+</div>
+
+{% if decks %}
+<ul class="deck-list">
+  {% for row in decks %}
+  <li class="deck-row">
+    <div class="deck-info">
+      <span class="deck-name">{{ row.deck.name }}</span>
+      <span class="deck-count">{{ row.card_count }} card{{ '' if row.card_count == 1 else 's' }}</span>
+    </div>
+    <div class="deck-actions">
+      <a class="btn" href="#" aria-disabled="true" title="Coming in Milestone 4">Study</a>
+      <a class="btn-secondary" href="{{ url_for('deck_edit', deck_id=row.deck.id) }}">Rename</a>
+      <a class="btn-secondary" href="{{ url_for('deck_delete', deck_id=row.deck.id) }}">Delete</a>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty-state">
+  <p>You don’t have any decks yet.</p>
+  <p>A deck is a collection of question/answer cards you can study together.</p>
+</div>
+{% endif %}
+
+<p><a class="btn" href="{{ url_for('deck_new') }}">+ New deck</a></p>
 {% endblock %}

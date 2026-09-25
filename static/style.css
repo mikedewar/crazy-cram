@@ -31,3 +31,51 @@ a { color: #4c8bf5; }
 }
 .gh-badge:hover { background: #8883; border-color: #8886; }
 .gh-badge svg { display: block; }
+
+main { max-width: 40rem; }
+
+.page-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;
+}
+.page-head h1 { margin: 0; }
+.page-head-actions { display: flex; align-items: center; gap: .75rem; font-size: .9rem; }
+.page-head-actions .who { opacity: .75; }
+form.inline { display: inline; margin: 0; }
+
+.deck-list { list-style: none; padding: 0; margin: 0 0 1.5rem; }
+.deck-row {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 1rem; padding: .75rem 1rem; margin-bottom: .5rem;
+  border: 1px solid #8884; border-radius: .5rem;
+}
+.deck-info { display: flex; flex-direction: column; }
+.deck-name { font-weight: 600; }
+.deck-count { font-size: .85rem; opacity: .7; }
+.deck-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+.empty-state {
+  padding: 1.5rem; margin-bottom: 1.5rem;
+  border: 1px dashed #8886; border-radius: .5rem; text-align: center;
+}
+.empty-state p { margin: .35rem 0; }
+
+a.btn, a.btn-secondary, a.btn-danger, .btn-secondary, .btn-danger {
+  display: inline-block; padding: .5rem .9rem; font: inherit;
+  border-radius: .375rem; text-decoration: none; cursor: pointer;
+  border: 1px solid transparent;
+}
+a.btn { background: #4c8bf5; border-color: #4c8bf5; color: #fff; }
+a.btn:hover { background: #3a78e0; border-color: #3a78e0; }
+a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-events: none; opacity: .7; }
+
+.btn-secondary, a.btn-secondary {
+  background: transparent; color: inherit;
+  border: 1px solid #8886;
+}
+.btn-secondary:hover, a.btn-secondary:hover { background: #8881; }
+
+.btn-danger, a.btn-danger {
+  background: #c3413a; border-color: #c3413a; color: #fff;
+}
+.btn-danger:hover, a.btn-danger:hover { background: #a5342e; border-color: #a5342e; }

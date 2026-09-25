@@ -205,6 +205,23 @@ class LoginForm(FlaskForm):
     submit = SubmitField("Log in")
 
 
+class DeckForm(FlaskForm):
+    name = StringField(
+        "Deck name",
+        validators=[DataRequired(), Length(min=1, max=DECK_NAME_MAX)],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
+    )
+    submit = SubmitField("Save deck")
+
+
+def _owned_deck_or_404(deck_id):
+    deck = db.session.get(Deck, deck_id)
+    if deck is None or deck.user_id != current_user.id:
+        from flask import abort
+        abort(404)
+    return deck
+
+
 @app.route("/")
 def index():
     if current_user.is_authenticated:
@@ -267,7 +284,54 @@ def logout():
 @app.route("/home")
 @login_required
 def home():
-    return render_template("home.html", user=current_user)
+    rows = (
+        db.session.query(Deck, func.count(Card.id))
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.user_id == current_user.id)
+        .group_by(Deck.id)
+        .order_by(Deck.created_at.asc())
+        .all()
+    )
+    decks = [{"deck": d, "card_count": n} for (d, n) in rows]
+    return render_template("home.html", user=current_user, decks=decks)
+
+
+@app.route("/decks/new", methods=["GET", "POST"])
+@login_required
+def deck_new():
+    form = DeckForm()
+    if form.validate_on_submit():
+        deck = Deck(user_id=current_user.id, name=form.name.data)
+        db.session.add(deck)
+        db.session.commit()
+        flash(f"Deck “{deck.name}” created.", "info")
+        return redirect(url_for("home"))
+    return render_template("deck_form.html", form=form, mode="new")
+
+
+@app.route("/decks/<int:deck_id>/edit", methods=["GET", "POST"])
+@login_required
+def deck_edit(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    form = DeckForm(obj=deck)
+    if form.validate_on_submit():
+        deck.name = form.name.data
+        db.session.commit()
+        flash("Deck renamed.", "info")
+        return redirect(url_for("home"))
+    return render_template("deck_form.html", form=form, mode="edit", deck=deck)
+
+
+@app.route("/decks/<int:deck_id>/delete", methods=["GET", "POST"])
+@login_required
+def deck_delete(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    if request.method == "POST":
+        db.session.delete(deck)
+        db.session.commit()
+        flash(f"Deck “{deck.name}” deleted.", "info")
+        return redirect(url_for("home"))
+    return render_template("deck_delete.html", deck=deck)
 
 
 if __name__ == "__main__":
