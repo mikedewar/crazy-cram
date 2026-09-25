@@ -384,13 +384,29 @@ def deck_cards(deck_id):
 def card_edit(card_id):
     card = _owned_card_or_404(card_id)
     form = CardForm(obj=card)
+
+    # Optional round-trip: if the caller passed ?return_to=<session_id> and
+    # that session belongs to the current user, save-and-return to its results
+    # page instead of the deck's card list.
+    return_to = request.values.get("return_to", type=int)
+    return_session = None
+    if return_to is not None:
+        s = db.session.get(StudySession, return_to)
+        if s is not None and s.user_id == current_user.id:
+            return_session = s
+
     if form.validate_on_submit():
         card.question = form.question.data
         card.answer = form.answer.data
         db.session.commit()
         flash("Card updated.", "info")
+        if return_session is not None:
+            return redirect(url_for("study_results", session_id=return_session.id))
         return redirect(url_for("deck_cards", deck_id=card.deck_id))
-    return render_template("card_form.html", form=form, card=card)
+    return render_template(
+        "card_form.html", form=form, card=card,
+        return_session=return_session,
+    )
 
 
 @app.route("/cards/<int:card_id>/delete", methods=["POST"])
@@ -636,6 +652,52 @@ def study_results(session_id):
         "study_results.html",
         session=s, deck=s.deck, rows=rows, total=s.n_cards,
     )
+
+
+@app.route("/sessions/<int:session_id>/restart", methods=["POST"])
+@login_required
+def study_restart(session_id):
+    """Start a fresh session against the same deck with the same config.
+
+    Uses the deck's *current* cards, not the old snapshot — that's the whole
+    point of restart: the student may have edited a card between sessions.
+    """
+    old = _owned_session_or_404(session_id)
+    deck = _owned_deck_or_404(old.deck_id)
+
+    cards = (
+        Card.query.filter_by(deck_id=deck.id)
+        .order_by(Card.created_at.asc(), Card.id.asc())
+        .all()
+    )
+    if not cards:
+        flash("This deck has no cards to study.", "error")
+        return redirect(url_for("deck_cards", deck_id=deck.id))
+
+    n = min(old.n_cards, len(cards))
+    chosen = list(cards)
+    if old.shuffled:
+        random.shuffle(chosen)
+    chosen = chosen[:n]
+
+    s = StudySession(
+        user_id=current_user.id,
+        deck_id=deck.id,
+        n_cards=n,
+        shuffled=old.shuffled,
+    )
+    db.session.add(s)
+    db.session.flush()
+    for i, c in enumerate(chosen):
+        db.session.add(StudyAttempt(
+            session_id=s.id,
+            card_id=c.id,
+            card_snapshot_q=c.question,
+            card_snapshot_a=c.answer,
+            position=i,
+        ))
+    db.session.commit()
+    return redirect(url_for("study_session", session_id=s.id))
 
 
 if __name__ == "__main__":

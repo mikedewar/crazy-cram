@@ -14,7 +14,11 @@
 </p>
 
 <p class="actions">
-  <a class="btn" href="{{ url_for('study_config', deck_id=deck.id) }}">Restart</a>
+  <form method="post" action="{{ url_for('study_restart', session_id=session.id) }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn">Restart</button>
+  </form>
+  <a class="btn-secondary" href="{{ url_for('study_config', deck_id=deck.id) }}">Change config</a>
   <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=deck.id) }}">Edit cards</a>
 </p>
 
@@ -51,7 +55,7 @@
         </div>
         {% if a.card_id %}
         <div class="result-actions">
-          <a class="btn-secondary" href="{{ url_for('card_edit', card_id=a.card_id) }}">Edit this card</a>
+          <a class="btn-secondary" href="{{ url_for('card_edit', card_id=a.card_id, return_to=session.id) }}">Edit this card</a>
         </div>
         {% endif %}
       {% endif %}

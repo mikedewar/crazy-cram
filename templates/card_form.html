@@ -2,8 +2,12 @@
 {% block title %}Edit card — Crazy-Cram{% endblock %}
 {% block content %}
 <h1>Edit card</h1>
+{% if return_session %}
+<p class="muted">From: <a href="{{ url_for('study_results', session_id=return_session.id) }}">Results</a> — {{ card.deck.name }}</p>
+{% else %}
 <p class="muted">Deck: <a href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">{{ card.deck.name }}</a></p>
-<form method="post" novalidate>
+{% endif %}
+<form method="post" novalidate action="{% if return_session %}{{ url_for('card_edit', card_id=card.id, return_to=return_session.id) }}{% else %}{{ url_for('card_edit', card_id=card.id) }}{% endif %}">
   {{ form.hidden_tag() }}
   <p>
     {{ form.question.label }}<br>
@@ -17,7 +21,11 @@
   </p>
   <p>
     {{ form.submit }}
+    {% if return_session %}
+    <a class="btn-secondary" href="{{ url_for('study_results', session_id=return_session.id) }}">Cancel</a>
+    {% else %}
     <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">Cancel</a>
+    {% endif %}
   </p>
 </form>
 {% endblock %}
