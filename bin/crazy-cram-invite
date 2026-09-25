@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Mint an invite code for Crazy-Cram registration.
+# Usage: crazy-cram-invite [count]   (default 1)
+set -euo pipefail
+APP_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+COUNT="${1:-1}"
+cd "$APP_DIR"
+"$APP_DIR/venv/bin/python" -c "
+import secrets
+from app import app, db, InviteCode
+with app.app_context():
+    for _ in range($COUNT):
+        code = secrets.token_urlsafe(9)
+        db.session.add(InviteCode(code=code))
+        print(code)
+    db.session.commit()
+"

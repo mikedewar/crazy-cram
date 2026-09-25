@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Crazy-Cram{% endblock %}
+{% block content %}
+<h1>Crazy-Cram</h1>
+<p>Signed in as <strong>{{ user.username }}</strong>.</p>
+<form method="post" action="{{ url_for('logout') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit">Log out</button>
+</form>
+{% endblock %}

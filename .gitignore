@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+instance/
+*.db
+*.sqlite
+*.sqlite3
+secret_key
+
+.env
+*.log

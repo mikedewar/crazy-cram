@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# One-off: create SQLite schema.
+set -euo pipefail
+APP_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+cd "$APP_DIR"
+"$APP_DIR/venv/bin/python" -c "
+from app import app, db
+with app.app_context():
+    db.create_all()
+    print('OK')
+"

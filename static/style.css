@@ -1,0 +1,23 @@
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { font: 16px/1.5 system-ui, sans-serif; margin: 0; }
+main { max-width: 32rem; margin: 3rem auto; padding: 0 1.5rem; }
+h1 { margin: 0 0 .25rem; font-size: 1.6rem; }
+h2 { margin: 0 0 1.25rem; font-weight: 500; font-size: 1.15rem; opacity: .8; }
+form p { margin: 0 0 1rem; }
+label { display: inline-block; margin-bottom: .25rem; font-size: .9rem; }
+input[type=text], input[type=password] {
+  width: 100%; padding: .55rem .7rem; font: inherit;
+  border: 1px solid #8886; border-radius: .375rem; background: transparent; color: inherit;
+}
+input:focus { outline: 2px solid #4c8bf5; outline-offset: 1px; }
+button, input[type=submit] {
+  padding: .55rem 1rem; font: inherit; cursor: pointer;
+  border: 1px solid #4c8bf5; background: #4c8bf5; color: #fff; border-radius: .375rem;
+}
+button:hover, input[type=submit]:hover { background: #3a78e0; border-color: #3a78e0; }
+.err { display: block; color: #c33; font-size: .85rem; margin-top: .25rem; }
+.flash { padding: .6rem .8rem; margin: 0 0 1rem; border-radius: .375rem; }
+.flash-error { background: #c333; border: 1px solid #c336; color: #b22; }
+.flash-info { background: #4c8bf533; border: 1px solid #4c8bf566; }
+a { color: #4c8bf5; }
