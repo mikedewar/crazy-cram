@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Results — {{ deck.name }} — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Results</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+  </div>
+</div>
+
+<p class="score">
+  <strong>{{ session.score }} / {{ total }}</strong> correct
+  <span class="muted">on {{ deck.name }}</span>
+</p>
+
+<p class="actions">
+  <a class="btn" href="{{ url_for('study_config', deck_id=deck.id) }}">Restart</a>
+  <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=deck.id) }}">Edit cards</a>
+</p>
+
+<ol class="result-list">
+  {% for row in rows %}
+    {% set a = row.attempt %}
+    <li class="result-row {{ 'right' if a.is_correct else 'wrong' }}">
+      <div class="result-q"><span class="result-label">Q</span> {{ a.card_snapshot_q }}</div>
+
+      {% if a.is_correct %}
+        <div class="result-a">
+          <span class="result-label">✓</span> <span>{{ a.student_answer }}</span>
+        </div>
+      {% else %}
+        <div class="result-a">
+          <span class="result-label">You</span>
+          <span class="diff-line">
+            {% if a.student_answer %}
+              {% for kind, ch in row.student_side -%}
+                <span class="diff-{{ kind }}">{{ ch }}</span>
+              {%- endfor %}
+            {% else %}
+              <em class="muted">(blank)</em>
+            {% endif %}
+          </span>
+        </div>
+        <div class="result-a">
+          <span class="result-label">Correct</span>
+          <span class="diff-line">
+            {% for kind, ch in row.correct_side -%}
+              <span class="diff-{{ kind }}">{{ ch }}</span>
+            {%- endfor %}
+          </span>
+        </div>
+        {% if a.card_id %}
+        <div class="result-actions">
+          <a class="btn-secondary" href="{{ url_for('card_edit', card_id=a.card_id) }}">Edit this card</a>
+        </div>
+        {% endif %}
+      {% endif %}
+    </li>
+  {% endfor %}
+</ol>
+{% endblock %}

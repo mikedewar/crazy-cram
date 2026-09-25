@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Study {{ deck.name }} — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Study: {{ deck.name }}</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+  </div>
+</div>
+
+{% if total == 0 %}
+<div class="empty-state">
+  <p>This deck has no cards yet.</p>
+  <p><a class="btn" href="{{ url_for('deck_cards', deck_id=deck.id) }}">Add cards first</a></p>
+</div>
+{% else %}
+<p class="muted">This deck has {{ total }} card{{ '' if total == 1 else 's' }}.</p>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  <p>
+    {{ form.n_cards.label }}<br>
+    {{ form.n_cards(type="number", min=1, max=total, autofocus=True) }}
+    {% for e in form.n_cards.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <fieldset class="radio-group">
+    <legend>{{ form.order.label.text }}</legend>
+    {% for sub in form.order %}
+      <label class="radio">{{ sub }} {{ sub.label.text }}</label>
+    {% endfor %}
+    {% for e in form.order.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </fieldset>
+  <p>{{ form.submit }}</p>
+</form>
+{% endif %}
+{% endblock %}

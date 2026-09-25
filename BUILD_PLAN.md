@@ -106,7 +106,8 @@ Milestones for the v1 flashcard rebuild. Each milestone ends in something shippa
 - Route: `/account` with two sections: change password, delete account.
 - Change password: current + new + confirm; bcrypt re-hash; force re-login.
 - Delete account: type username to confirm; cascades to decks, cards, sessions, attempts, invite-code link.
-- Tests: change-password wrong-current rejected; delete removes all owned rows; deleted user can't log back in.
+  - **Migration needed**: `invite_code.used_by` currently has no `ON DELETE` clause, so a delete-user with a linked invite fails with FK error. Add a migration to `SET NULL` (keeps the invite audit row, drops the link) — discovered during M4 smoke-test cleanup, 2026-09-25.
+- Tests: change-password wrong-current rejected; delete removes all owned rows; deleted user can't log back in; delete-user succeeds even when the user has an associated invite code.
 
 **Ship criterion**: no manual DB surgery required for account changes.
 

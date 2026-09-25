@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Studying — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="progress" aria-label="{{ position }} of {{ total }}">
+  <div class="progress-bar" style="width: {{ (position / total * 100) | round(2) }}%;"></div>
+  <div class="progress-label">{{ position }} of {{ total }}</div>
+</div>
+
+<h1 class="study-question">{{ attempt.card_snapshot_q }}</h1>
+
+<form method="post" action="{{ url_for('study_submit', session_id=session.id) }}" class="study-answer">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
+  <label for="answer">Your answer</label>
+  <input type="text" name="answer" id="answer" autocomplete="off"
+         autocapitalize="off" spellcheck="false" autofocus
+         maxlength="500">
+  <p><button type="submit">Submit (Enter)</button></p>
+</form>
+
+<p class="muted"><a href="{{ url_for('home') }}">Quit to decks</a></p>
+{% endblock %}

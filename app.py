@@ -1,9 +1,12 @@
+import difflib
 import os
+import random
+import re
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, render_template, redirect, url_for, flash, request
+from flask import Flask, render_template, redirect, url_for, flash, request, abort
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_bcrypt import Bcrypt
 from flask_login import (
@@ -15,8 +18,11 @@ from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event, func
 from sqlalchemy.engine import Engine
-from wtforms import StringField, PasswordField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired, Length, Regexp, EqualTo
+from wtforms import (
+    StringField, PasswordField, SubmitField, TextAreaField,
+    IntegerField, RadioField,
+)
+from wtforms.validators import DataRequired, Length, Regexp, EqualTo, NumberRange
 
 MAX_USERS = int(os.environ.get("CRAZY_CRAM_MAX_USERS", "30"))
 INSTANCE_DIR = Path(__file__).parent / "instance"
@@ -217,7 +223,6 @@ class DeckForm(FlaskForm):
 def _owned_deck_or_404(deck_id):
     deck = db.session.get(Deck, deck_id)
     if deck is None or deck.user_id != current_user.id:
-        from flask import abort
         abort(404)
     return deck
 
@@ -225,7 +230,6 @@ def _owned_deck_or_404(deck_id):
 def _owned_card_or_404(card_id):
     card = db.session.get(Card, card_id)
     if card is None or card.deck.user_id != current_user.id:
-        from flask import abort
         abort(404)
     return card
 
@@ -398,6 +402,240 @@ def card_delete(card_id):
     db.session.commit()
     flash("Card deleted.", "info")
     return redirect(url_for("deck_cards", deck_id=deck_id))
+
+
+# --- Study session ----------------------------------------------------
+
+_WS_RUN = re.compile(r"\s+")
+
+
+def normalize_answer(text):
+    """Trim + collapse internal whitespace runs to a single space.
+
+    Case is preserved (comparison is case-sensitive per REQUIREMENTS §4).
+    None → "" so a blank submit compares against the normalized correct
+    answer and (unless the answer really is empty, which it can't be)
+    always loses.
+    """
+    if text is None:
+        return ""
+    return _WS_RUN.sub(" ", text).strip()
+
+
+def answers_match(student_answer, correct_answer):
+    return normalize_answer(student_answer) == normalize_answer(correct_answer)
+
+
+def char_diff_ops(student_answer, correct_answer):
+    """Return per-side lists of (kind, char) tuples for HTML rendering.
+
+    kind is "eq", "ins" (present in correct only), or "del" (present in
+    student only). Comparison is on the raw text, not the normalized
+    text — the student sees exactly what they typed.
+    """
+    a = student_answer or ""
+    b = correct_answer or ""
+    student_side = []
+    correct_side = []
+    matcher = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for ch in a[i1:i2]:
+                student_side.append(("eq", ch))
+            for ch in b[j1:j2]:
+                correct_side.append(("eq", ch))
+        elif tag == "replace":
+            for ch in a[i1:i2]:
+                student_side.append(("del", ch))
+            for ch in b[j1:j2]:
+                correct_side.append(("ins", ch))
+        elif tag == "delete":
+            for ch in a[i1:i2]:
+                student_side.append(("del", ch))
+        elif tag == "insert":
+            for ch in b[j1:j2]:
+                correct_side.append(("ins", ch))
+    return student_side, correct_side
+
+
+class StudyConfigForm(FlaskForm):
+    n_cards = IntegerField(
+        "How many cards?",
+        validators=[DataRequired(), NumberRange(min=1)],
+    )
+    order = RadioField(
+        "Order",
+        choices=[("shuffle", "Shuffle"), ("created", "Creation order")],
+        default="shuffle",
+        validators=[DataRequired()],
+    )
+    submit = SubmitField("Start")
+
+
+def _owned_session_or_404(session_id):
+    s = db.session.get(StudySession, session_id)
+    if s is None or s.user_id != current_user.id:
+        abort(404)
+    return s
+
+
+@app.route("/decks/<int:deck_id>/study", methods=["GET", "POST"])
+@login_required
+def study_config(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    cards = (
+        Card.query.filter_by(deck_id=deck.id)
+        .order_by(Card.created_at.asc(), Card.id.asc())
+        .all()
+    )
+    total = len(cards)
+
+    if total == 0:
+        # No form / no Start button — the template shows a link to add cards.
+        return render_template(
+            "study_config.html", deck=deck, total=0, form=None,
+        )
+
+    form = StudyConfigForm()
+    if request.method == "GET":
+        form.n_cards.data = total
+
+    if form.validate_on_submit():
+        # Clamp requested count silently to what's actually available.
+        n = min(max(1, form.n_cards.data), total)
+        shuffled = form.order.data == "shuffle"
+
+        chosen = list(cards)
+        if shuffled:
+            random.shuffle(chosen)
+        chosen = chosen[:n]
+
+        s = StudySession(
+            user_id=current_user.id,
+            deck_id=deck.id,
+            n_cards=n,
+            shuffled=shuffled,
+        )
+        db.session.add(s)
+        db.session.flush()
+        for i, c in enumerate(chosen):
+            db.session.add(StudyAttempt(
+                session_id=s.id,
+                card_id=c.id,
+                card_snapshot_q=c.question,
+                card_snapshot_a=c.answer,
+                position=i,
+            ))
+        db.session.commit()
+        return redirect(url_for("study_session", session_id=s.id))
+
+    return render_template(
+        "study_config.html", deck=deck, total=total, form=form,
+    )
+
+
+def _next_unanswered(session):
+    return (
+        StudyAttempt.query
+        .filter_by(session_id=session.id, is_correct=None)
+        .order_by(StudyAttempt.position.asc())
+        .first()
+    )
+
+
+@app.route("/sessions/<int:session_id>")
+@login_required
+def study_session(session_id):
+    s = _owned_session_or_404(session_id)
+    if s.finished_at is not None:
+        return redirect(url_for("study_results", session_id=s.id))
+    attempt = _next_unanswered(s)
+    if attempt is None:
+        # Shouldn't happen — finalize defensively and redirect to results.
+        _finalize_session(s)
+        return redirect(url_for("study_results", session_id=s.id))
+    return render_template(
+        "study_session.html",
+        session=s, attempt=attempt,
+        position=attempt.position + 1, total=s.n_cards,
+    )
+
+
+@app.route("/sessions/<int:session_id>/submit", methods=["POST"])
+@login_required
+def study_submit(session_id):
+    s = _owned_session_or_404(session_id)
+    if s.finished_at is not None:
+        return redirect(url_for("study_results", session_id=s.id))
+
+    attempt_id = request.form.get("attempt_id", type=int)
+    if attempt_id is None:
+        abort(400)
+    attempt = db.session.get(StudyAttempt, attempt_id)
+    if attempt is None or attempt.session_id != s.id:
+        abort(404)
+    if attempt.is_correct is not None:
+        # Double-submit — ignore silently, go to whatever's next.
+        return redirect(url_for("study_session", session_id=s.id))
+
+    raw = request.form.get("answer", "") or ""
+    # Trim to schema cap so a paste-bomb can't blow up the insert.
+    if len(raw) > CARD_SIDE_MAX:
+        raw = raw[:CARD_SIDE_MAX]
+
+    attempt.student_answer = raw
+    attempt.is_correct = answers_match(raw, attempt.card_snapshot_a)
+    attempt.attempted_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    if _next_unanswered(s) is None:
+        _finalize_session(s)
+        return redirect(url_for("study_results", session_id=s.id))
+    return redirect(url_for("study_session", session_id=s.id))
+
+
+def _finalize_session(s):
+    if s.finished_at is not None:
+        return
+    score = (
+        db.session.query(func.count(StudyAttempt.id))
+        .filter(StudyAttempt.session_id == s.id, StudyAttempt.is_correct.is_(True))
+        .scalar()
+    )
+    s.score = int(score or 0)
+    s.finished_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+
+@app.route("/sessions/<int:session_id>/results")
+@login_required
+def study_results(session_id):
+    s = _owned_session_or_404(session_id)
+    if s.finished_at is None:
+        # Not finished yet — send them back to the loop.
+        return redirect(url_for("study_session", session_id=s.id))
+
+    attempts = (
+        StudyAttempt.query.filter_by(session_id=s.id)
+        .order_by(StudyAttempt.position.asc())
+        .all()
+    )
+    rows = []
+    for a in attempts:
+        student_side, correct_side = ([], [])
+        if not a.is_correct:
+            student_side, correct_side = char_diff_ops(
+                a.student_answer or "", a.card_snapshot_a
+            )
+        rows.append({
+            "attempt": a,
+            "student_side": student_side,
+            "correct_side": correct_side,
+        })
+    return render_template(
+        "study_results.html",
+        session=s, deck=s.deck, rows=rows, total=s.n_cards,
+    )
 
 
 if __name__ == "__main__":
