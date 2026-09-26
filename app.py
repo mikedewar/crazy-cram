@@ -44,6 +44,14 @@ VERSION = (
 app = Flask(__name__, instance_path=str(INSTANCE_DIR))
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+_STYLE_FILE = Path(__file__).parent / "static" / "style.css"
+_ASSET_VERSION = f"{VERSION}-{int(_STYLE_FILE.stat().st_mtime)}" if _STYLE_FILE.exists() else VERSION
+
+
+@app.context_processor
+def _inject_asset_version():
+    return {"asset_version": _ASSET_VERSION}
+
 _secret_file = INSTANCE_DIR / "secret_key"
 if not _secret_file.exists():
     _secret_file.write_bytes(secrets.token_bytes(32))
