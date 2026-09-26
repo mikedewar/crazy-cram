@@ -505,16 +505,41 @@ def logout():
 @app.route("/home")
 @login_required
 def home():
-    rows = (
-        db.session.query(Deck, func.count(Card.id))
-        .outerjoin(Card, Card.deck_id == Deck.id)
-        .filter(Deck.user_id == current_user.id)
-        .group_by(Deck.id)
-        .order_by(Deck.created_at.asc())
+    folder_rows = (
+        db.session.query(Folder, func.count(Deck.id))
+        .outerjoin(Deck, Deck.folder_id == Folder.id)
+        .filter(Folder.user_id == current_user.id)
+        .group_by(Folder.id)
+        .order_by(Folder.name.asc())
         .all()
     )
-    decks = [{"deck": d, "card_count": n} for (d, n) in rows]
-    return render_template("home.html", user=current_user, decks=decks)
+    folders = [{"folder": f, "deck_count": n} for (f, n) in folder_rows]
+    unfiled_count = Deck.query.filter_by(user_id=current_user.id, folder_id=None).count()
+    total_decks = Deck.query.filter_by(user_id=current_user.id).count()
+
+    recent_rows = (
+        db.session.query(Deck, Folder, func.count(Card.id))
+        .outerjoin(Folder, Folder.id == Deck.folder_id)
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.user_id == current_user.id)
+        .group_by(Deck.id, Folder.id)
+        .order_by(Deck.last_opened_at.desc().nullslast(), Deck.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    recent = [
+        {"deck": d, "folder": f, "card_count": n}
+        for (d, f, n) in recent_rows
+        if d.last_opened_at is not None
+    ]
+    return render_template(
+        "home.html",
+        user=current_user,
+        folders=folders,
+        unfiled_count=unfiled_count,
+        total_decks=total_decks,
+        recent=recent,
+    )
 
 
 @app.route("/decks/new", methods=["GET", "POST"])
@@ -696,6 +721,16 @@ def deck_cards(deck_id):
         .order_by(Card.created_at.asc(), Card.id.asc())
         .all()
     )
+    # Bump last_opened_at on GET only — POST is card-creation, not a
+    # deck-viewing event. Isolated UPDATE via db.session.execute so the
+    # ORM doesn't touch Deck.updated_at (that column belongs to Card).
+    if request.method == "GET":
+        db.session.execute(
+            db.update(Deck)
+            .where(Deck.id == deck.id)
+            .values(last_opened_at=datetime.now(timezone.utc))
+        )
+        db.session.commit()
     return render_template("deck_cards.html", deck=deck, cards=cards, form=form)
 
 
