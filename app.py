@@ -539,6 +539,7 @@ def home():
         unfiled_count=unfiled_count,
         total_decks=total_decks,
         recent=recent,
+        new_folder_form=FolderForm(),
     )
 
 

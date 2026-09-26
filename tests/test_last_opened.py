@@ -166,6 +166,26 @@ def test_home_recent_unfiled_deck_shows_unfiled_chip(client, invite, app):
     assert body.count("Unfiled") >= 2
 
 
+def test_home_has_new_folder_form(client, invite):
+    """Home page exposes an inline 'New folder' form posting to /folders."""
+    _register(client, invite, "alice")
+    r = client.get("/home")
+    assert r.status_code == 200
+    body = r.data.decode()
+    assert 'action="/folders"' in body
+    assert 'placeholder="New folder name"' in body
+
+
+def test_home_new_folder_form_creates_folder(client, invite, app):
+    """The form on home actually creates a folder when submitted."""
+    _register(client, invite, "alice")
+    alice = app.User.query.filter_by(username="alice").one()
+    r = client.post("/folders", data={"name": "Langs", "submit": "Create folder"},
+                    follow_redirects=False)
+    assert r.status_code in (301, 302)
+    assert app.Folder.query.filter_by(user_id=alice.id, name="Langs").count() == 1
+
+
 def test_home_recent_excludes_other_users_decks(client, invite, app):
     _register(client, invite, "alice", "correct-horse-1")
     client.post("/logout")

@@ -19,6 +19,13 @@
   <p>A deck is a collection of question/answer cards you can study together.</p>
   <p><a class="btn" href="{{ url_for('deck_new') }}">+ New deck</a></p>
 </div>
+
+<form method="post" action="{{ url_for('folder_list') }}" novalidate class="folder-new-form">
+  {{ new_folder_form.hidden_tag() }}
+  {{ new_folder_form.name(placeholder="New folder name", maxlength=64) }}
+  {{ new_folder_form.submit }}
+</form>
+{% for e in new_folder_form.name.errors %}<span class="err">{{ e }}</span>{% endfor %}
 {% else %}
 
 <section class="folders-section">
@@ -49,6 +56,13 @@
     <a class="btn" href="{{ url_for('deck_new') }}">+ New deck</a>
     <a class="btn-secondary" href="{{ url_for('folder_list') }}">Manage folders</a>
   </p>
+
+  <form method="post" action="{{ url_for('folder_list') }}" novalidate class="folder-new-form">
+    {{ new_folder_form.hidden_tag() }}
+    {{ new_folder_form.name(placeholder="New folder name", maxlength=64) }}
+    {{ new_folder_form.submit }}
+  </form>
+  {% for e in new_folder_form.name.errors %}<span class="err">{{ e }}</span>{% endfor %}
 </section>
 
 {% if recent %}
