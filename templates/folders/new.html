@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}New folder — Crazy-Cram{% endblock %}
+{% block content %}
+<h1>New folder</h1>
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  <p>
+    {{ form.name.label }}<br>
+    {{ form.name(autofocus=True, maxlength=64) }}
+    {% for e in form.name.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
+  <p>
+    {{ form.submit }}
+    <a class="btn-secondary" href="{{ url_for('home') }}">Cancel</a>
+  </p>
+</form>
+{% endblock %}

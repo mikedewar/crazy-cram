@@ -547,7 +547,6 @@ def home():
         unfiled_count=unfiled_count,
         total_decks=total_decks,
         recent=recent,
-        new_folder_form=FolderForm(),
     )
 
 
@@ -614,6 +613,19 @@ def deck_delete(deck_id):
 
 
 # --- Folders ------------------------------------------------------------
+
+@app.route("/folders/new", methods=["GET", "POST"])
+@login_required
+def folder_new():
+    form = FolderForm()
+    if form.validate_on_submit():
+        folder = Folder(user_id=current_user.id, name=form.name.data)
+        db.session.add(folder)
+        db.session.commit()
+        flash(f"Folder “{folder.name}” created.", "info")
+        return redirect(url_for("home"))
+    return render_template("folders/new.html", form=form)
+
 
 @app.route("/folders", methods=["GET", "POST"])
 @login_required
