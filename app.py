@@ -136,6 +136,23 @@ class InviteCode(db.Model):
 
 CARD_SIDE_MAX = 500
 DECK_NAME_MAX = 120
+FOLDER_NAME_MAX = 64
+
+
+class Folder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    name = db.Column(db.String(FOLDER_NAME_MAX), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "name", name="uq_folder_user_id_name"),
+    )
+
+    user = db.relationship("User", backref=db.backref("folders", cascade="all, delete-orphan", passive_deletes=True))
 
 
 class Deck(db.Model):
@@ -146,8 +163,14 @@ class Deck(db.Model):
     )
     name = db.Column(db.String(DECK_NAME_MAX), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    folder_id = db.Column(
+        db.Integer, db.ForeignKey("folder.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+    last_opened_at = db.Column(db.DateTime, nullable=True, index=True)
 
     user = db.relationship("User", backref=db.backref("decks", cascade="all, delete-orphan", passive_deletes=True))
+    folder = db.relationship("Folder", backref=db.backref("decks", passive_deletes=True))
     cards = db.relationship(
         "Card",
         backref="deck",
