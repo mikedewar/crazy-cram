@@ -25,9 +25,11 @@ from sqlalchemy import event, func, text
 from sqlalchemy.engine import Engine
 from wtforms import (
     StringField, PasswordField, SubmitField, TextAreaField,
-    IntegerField, RadioField,
+    IntegerField, RadioField, SelectField, BooleanField, HiddenField,
 )
-from wtforms.validators import DataRequired, Length, Regexp, EqualTo, NumberRange
+from wtforms.validators import (
+    DataRequired, Length, Regexp, EqualTo, NumberRange, ValidationError, Optional,
+)
 
 MAX_USERS = int(os.environ.get("CRAZY_CRAM_MAX_USERS", "30"))
 INSTANCE_DIR = Path(__file__).parent / "instance"
@@ -322,11 +324,55 @@ class DeckForm(FlaskForm):
     submit = SubmitField("Save deck")
 
 
+class FolderForm(FlaskForm):
+    name = StringField(
+        "Folder name",
+        validators=[DataRequired(), Length(min=1, max=FOLDER_NAME_MAX)],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
+    )
+    submit = SubmitField("Save folder")
+
+    def __init__(self, *args, folder_id=None, **kwargs):
+        """folder_id — the id of the folder being renamed, so the
+        per-user uniqueness check below can exclude it from the clash
+        check (a no-op rename mustn't collide with itself)."""
+        super().__init__(*args, **kwargs)
+        self._folder_id = folder_id
+
+    def validate_name(self, field):
+        existing = Folder.query.filter_by(
+            user_id=current_user.id, name=field.data,
+        ).first()
+        if existing is not None and existing.id != self._folder_id:
+            raise ValidationError("You already have a folder with that name.")
+
+
+class FolderDeleteForm(FlaskForm):
+    id = HiddenField()
+    also_delete_decks = BooleanField("Also delete the decks inside", default=False)
+    submit = SubmitField("Delete folder")
+
+
 def _owned_deck_or_404(deck_id):
     deck = db.session.get(Deck, deck_id)
     if deck is None or deck.user_id != current_user.id:
         abort(404)
     return deck
+
+
+def _owned_folder_or_404(folder_id):
+    folder = db.session.get(Folder, folder_id)
+    if folder is None or folder.user_id != current_user.id:
+        abort(404)
+    return folder
+
+
+def _delete_deck(deck):
+    """Delete a deck. Cascades to its cards/sessions/attempts via the
+    ORM relationship cascades on Deck — the single source of truth for
+    deck-delete semantics, shared by the single-deck route and the
+    folder 'also delete decks' path so they can't drift apart."""
+    db.session.delete(deck)
 
 
 def _owned_card_or_404(card_id):
@@ -465,11 +511,113 @@ def deck_edit(deck_id):
 def deck_delete(deck_id):
     deck = _owned_deck_or_404(deck_id)
     if request.method == "POST":
-        db.session.delete(deck)
+        name = deck.name
+        _delete_deck(deck)
         db.session.commit()
-        flash(f"Deck “{deck.name}” deleted.", "info")
+        flash(f"Deck “{name}” deleted.", "info")
         return redirect(url_for("home"))
     return render_template("deck_delete.html", deck=deck)
+
+
+# --- Folders ------------------------------------------------------------
+
+@app.route("/folders", methods=["GET", "POST"])
+@login_required
+def folder_list():
+    form = FolderForm()
+    if form.validate_on_submit():
+        folder = Folder(user_id=current_user.id, name=form.name.data)
+        db.session.add(folder)
+        db.session.commit()
+        flash(f"Folder “{folder.name}” created.", "info")
+        return redirect(url_for("folder_list"))
+
+    rows = (
+        db.session.query(Folder, func.count(Deck.id))
+        .outerjoin(Deck, Deck.folder_id == Folder.id)
+        .filter(Folder.user_id == current_user.id)
+        .group_by(Folder.id)
+        .order_by(Folder.name.asc())
+        .all()
+    )
+    folders = [{"folder": f, "deck_count": n} for (f, n) in rows]
+    unfiled_count = Deck.query.filter_by(user_id=current_user.id, folder_id=None).count()
+    rename_forms = {f["folder"].id: FolderForm(obj=f["folder"], folder_id=f["folder"].id) for f in folders}
+    return render_template(
+        "folders/list.html", form=form, folders=folders,
+        unfiled_count=unfiled_count, rename_forms=rename_forms,
+    )
+
+
+@app.route("/folders/unfiled")
+@login_required
+def folder_unfiled():
+    rows = (
+        db.session.query(Deck, func.count(Card.id))
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.user_id == current_user.id, Deck.folder_id.is_(None))
+        .group_by(Deck.id)
+        .order_by(Deck.created_at.asc())
+        .all()
+    )
+    decks = [{"deck": d, "card_count": n} for (d, n) in rows]
+    return render_template("folders/detail.html", folder=None, decks=decks)
+
+
+@app.route("/folders/<int:folder_id>")
+@login_required
+def folder_detail(folder_id):
+    folder = _owned_folder_or_404(folder_id)
+    rows = (
+        db.session.query(Deck, func.count(Card.id))
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.folder_id == folder.id)
+        .group_by(Deck.id)
+        .order_by(Deck.created_at.asc())
+        .all()
+    )
+    decks = [{"deck": d, "card_count": n} for (d, n) in rows]
+    return render_template("folders/detail.html", folder=folder, decks=decks)
+
+
+@app.route("/folders/<int:folder_id>/rename", methods=["POST"])
+@login_required
+def folder_rename(folder_id):
+    folder = _owned_folder_or_404(folder_id)
+    form = FolderForm(folder_id=folder.id)
+    if form.validate_on_submit():
+        folder.name = form.name.data
+        db.session.commit()
+        flash("Folder renamed.", "info")
+    else:
+        for e in form.name.errors:
+            flash(e, "error")
+    return redirect(url_for("folder_list"))
+
+
+@app.route("/folders/<int:folder_id>/delete", methods=["GET", "POST"])
+@login_required
+def folder_delete(folder_id):
+    folder = _owned_folder_or_404(folder_id)
+    deck_count = Deck.query.filter_by(folder_id=folder.id).count()
+    form = FolderDeleteForm(id=folder.id)
+    if request.method == "POST":
+        form = FolderDeleteForm()
+        if form.validate_on_submit():
+            name = folder.name
+            if form.also_delete_decks.data:
+                decks = Deck.query.filter_by(folder_id=folder.id).all()
+                for d in decks:
+                    _delete_deck(d)
+            # Unchecked: leave decks in place — the FK's ON DELETE SET NULL
+            # nulls their folder_id automatically when the folder row goes.
+            db.session.delete(folder)
+            db.session.commit()
+            flash(f"Folder “{name}” deleted.", "info")
+            return redirect(url_for("folder_list"))
+    return render_template(
+        "folders/delete.html", folder=folder, deck_count=deck_count, form=form,
+    )
 
 
 @app.route("/decks/<int:deck_id>/cards", methods=["GET", "POST"])

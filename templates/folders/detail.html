@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ folder.name if folder else 'Unfiled' }} — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ folder.name if folder else 'Unfiled' }}</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('folder_list') }}">All folders</a>
+  </div>
+</div>
+
+{% if decks %}
+<ul class="deck-list">
+  {% for row in decks %}
+  <li class="deck-row">
+    <div class="deck-info">
+      <span class="deck-name">{{ row.deck.name }}</span>
+      <span class="deck-count">{{ row.card_count }} card{{ '' if row.card_count == 1 else 's' }}</span>
+    </div>
+    <div class="deck-actions">
+      {% if row.card_count > 0 %}
+      <a class="btn" href="{{ url_for('study_config', deck_id=row.deck.id) }}">Study</a>
+      {% else %}
+      <a class="btn" href="#" aria-disabled="true" title="Add cards first">Study</a>
+      {% endif %}
+      <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}">Cards</a>
+      <a class="btn-secondary" href="{{ url_for('deck_edit', deck_id=row.deck.id) }}">Rename</a>
+      <a class="btn-secondary" href="{{ url_for('deck_delete', deck_id=row.deck.id) }}">Delete</a>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty-state">
+  <p>No decks {{ 'in this folder' if folder else 'unfiled' }} yet.</p>
+</div>
+{% endif %}
+
+<p>
+  <a class="btn" href="{{ url_for('deck_new', folder=folder.id) if folder else url_for('deck_new') }}">+ New deck</a>
+</p>
+{% endblock %}
