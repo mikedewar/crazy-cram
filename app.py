@@ -315,13 +315,50 @@ class DeleteAccountForm(FlaskForm):
     submit = SubmitField("Delete my account")
 
 
+def _folder_choices():
+    """SelectField choices for the current user's folders, alpha, with a
+    leading Unfiled option ('' → NULL). Callers must be inside a request
+    with current_user available."""
+    choices = [("", "— Unfiled —")]
+    for f in Folder.query.filter_by(user_id=current_user.id).order_by(Folder.name.asc()):
+        choices.append((str(f.id), f.name))
+    return choices
+
+
+def _resolve_folder_id(raw):
+    """Turn a SelectField value ('' or '<id>') into a validated folder_id
+    for current_user, or None. 404 on any id the user doesn't own."""
+    if raw in (None, ""):
+        return None
+    try:
+        fid = int(raw)
+    except (TypeError, ValueError):
+        abort(400)
+    _owned_folder_or_404(fid)
+    return fid
+
+
 class DeckForm(FlaskForm):
     name = StringField(
         "Deck name",
         validators=[DataRequired(), Length(min=1, max=DECK_NAME_MAX)],
         filters=[lambda v: v.strip() if isinstance(v, str) else v],
     )
+    folder_id = SelectField("Folder", choices=[], validate_choice=False, default="")
     submit = SubmitField("Save deck")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.folder_id.choices = _folder_choices()
+
+
+class DeckMoveForm(FlaskForm):
+    folder_id = SelectField("Move to folder", choices=[], validate_choice=False, default="")
+    submit = SubmitField("Move")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.folder_id.choices = _folder_choices()
 
 
 class FolderForm(FlaskForm):
@@ -484,11 +521,19 @@ def home():
 @login_required
 def deck_new():
     form = DeckForm()
+    if request.method == "GET":
+        # ?folder=<id> pre-selects the dropdown when arriving from a folder view.
+        pre = request.args.get("folder", "")
+        if pre and any(pre == v for v, _ in form.folder_id.choices):
+            form.folder_id.data = pre
     if form.validate_on_submit():
-        deck = Deck(user_id=current_user.id, name=form.name.data)
+        folder_id = _resolve_folder_id(form.folder_id.data)
+        deck = Deck(user_id=current_user.id, name=form.name.data, folder_id=folder_id)
         db.session.add(deck)
         db.session.commit()
         flash(f"Deck “{deck.name}” created.", "info")
+        if folder_id is not None:
+            return redirect(url_for("folder_detail", folder_id=folder_id))
         return redirect(url_for("home"))
     return render_template("deck_form.html", form=form, mode="new")
 
@@ -498,12 +543,27 @@ def deck_new():
 def deck_edit(deck_id):
     deck = _owned_deck_or_404(deck_id)
     form = DeckForm(obj=deck)
+    if request.method == "GET":
+        form.folder_id.data = "" if deck.folder_id is None else str(deck.folder_id)
     if form.validate_on_submit():
         deck.name = form.name.data
+        deck.folder_id = _resolve_folder_id(form.folder_id.data)
         db.session.commit()
-        flash("Deck renamed.", "info")
+        flash("Deck saved.", "info")
         return redirect(url_for("home"))
     return render_template("deck_form.html", form=form, mode="edit", deck=deck)
+
+
+@app.route("/decks/<int:deck_id>/move", methods=["POST"])
+@login_required
+def deck_move(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    form = DeckMoveForm()
+    if form.validate_on_submit():
+        deck.folder_id = _resolve_folder_id(form.folder_id.data)
+        db.session.commit()
+        flash("Deck moved.", "info")
+    return redirect(request.referrer or url_for("home"))
 
 
 @app.route("/decks/<int:deck_id>/delete", methods=["GET", "POST"])
