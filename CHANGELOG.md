@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.1.0 — 2026-09-26
+
+**Folders.** A one-level organisation layer above decks, plus a "Recently opened" section on the landing page.
+
+- `Folder(id, user_id, name, created_at)` with `UNIQUE(user_id, name)`. One flat level per user, uncapped, private.
+- `Deck.folder_id` — nullable FK, `ON DELETE SET NULL`. Existing decks migrate to `folder_id = NULL` (Unfiled).
+- `Deck.last_opened_at` — DateTime nullable, indexed. Bumped on `GET /decks/<id>/cards` only.
+- Folder CRUD: `/folders`, `/folders/<id>`, `/folders/unfiled`, rename, and delete-with-optional-cascade. Deleting a folder keeps its decks (SET NULL) by default; a checkbox on the confirm page deletes the decks too.
+- Deck create/edit gains a folder dropdown. `/decks/new?folder=<id>` preselects. `POST /decks/<id>/move` for standalone move.
+- Home page reworked: shows folders (with an Unfiled pseudo-folder) plus a "Recently opened" section listing the top 5 decks by `last_opened_at` with folder chips. Never-opened decks are reached via a folder view.
+- All folder routes ownership-gated to `current_user.id` — foreign folders / decks 404 uniformly, including in `/move` and `?folder=` preselect.
+- Alembic migration `0004_folders_and_last_opened_at`.
+- 207 tests green (was 161; +46 covering folders, deck-folder wiring, and `last_opened_at`).
+
 ## v1.0.0 — 2026-09-25
 
 **Milestone 7 — Housekeeping.** Production-ready polish.

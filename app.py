@@ -25,9 +25,11 @@ from sqlalchemy import event, func, text
 from sqlalchemy.engine import Engine
 from wtforms import (
     StringField, PasswordField, SubmitField, TextAreaField,
-    IntegerField, RadioField,
+    IntegerField, RadioField, SelectField, BooleanField, HiddenField,
 )
-from wtforms.validators import DataRequired, Length, Regexp, EqualTo, NumberRange
+from wtforms.validators import (
+    DataRequired, Length, Regexp, EqualTo, NumberRange, ValidationError, Optional,
+)
 
 MAX_USERS = int(os.environ.get("CRAZY_CRAM_MAX_USERS", "30"))
 INSTANCE_DIR = Path(__file__).parent / "instance"
@@ -136,6 +138,23 @@ class InviteCode(db.Model):
 
 CARD_SIDE_MAX = 500
 DECK_NAME_MAX = 120
+FOLDER_NAME_MAX = 64
+
+
+class Folder(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("user.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    name = db.Column(db.String(FOLDER_NAME_MAX), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "name", name="uq_folder_user_id_name"),
+    )
+
+    user = db.relationship("User", backref=db.backref("folders", cascade="all, delete-orphan", passive_deletes=True))
 
 
 class Deck(db.Model):
@@ -146,8 +165,14 @@ class Deck(db.Model):
     )
     name = db.Column(db.String(DECK_NAME_MAX), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    folder_id = db.Column(
+        db.Integer, db.ForeignKey("folder.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+    last_opened_at = db.Column(db.DateTime, nullable=True, index=True)
 
     user = db.relationship("User", backref=db.backref("decks", cascade="all, delete-orphan", passive_deletes=True))
+    folder = db.relationship("Folder", backref=db.backref("decks", passive_deletes=True))
     cards = db.relationship(
         "Card",
         backref="deck",
@@ -290,13 +315,79 @@ class DeleteAccountForm(FlaskForm):
     submit = SubmitField("Delete my account")
 
 
+def _folder_choices():
+    """SelectField choices for the current user's folders, alpha, with a
+    leading Unfiled option ('' → NULL). Callers must be inside a request
+    with current_user available."""
+    choices = [("", "— Unfiled —")]
+    for f in Folder.query.filter_by(user_id=current_user.id).order_by(Folder.name.asc()):
+        choices.append((str(f.id), f.name))
+    return choices
+
+
+def _resolve_folder_id(raw):
+    """Turn a SelectField value ('' or '<id>') into a validated folder_id
+    for current_user, or None. 404 on any id the user doesn't own."""
+    if raw in (None, ""):
+        return None
+    try:
+        fid = int(raw)
+    except (TypeError, ValueError):
+        abort(400)
+    _owned_folder_or_404(fid)
+    return fid
+
+
 class DeckForm(FlaskForm):
     name = StringField(
         "Deck name",
         validators=[DataRequired(), Length(min=1, max=DECK_NAME_MAX)],
         filters=[lambda v: v.strip() if isinstance(v, str) else v],
     )
+    folder_id = SelectField("Folder", choices=[], validate_choice=False, default="")
     submit = SubmitField("Save deck")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.folder_id.choices = _folder_choices()
+
+
+class DeckMoveForm(FlaskForm):
+    folder_id = SelectField("Move to folder", choices=[], validate_choice=False, default="")
+    submit = SubmitField("Move")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.folder_id.choices = _folder_choices()
+
+
+class FolderForm(FlaskForm):
+    name = StringField(
+        "Folder name",
+        validators=[DataRequired(), Length(min=1, max=FOLDER_NAME_MAX)],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
+    )
+    submit = SubmitField("Save folder")
+
+    def __init__(self, *args, folder_id=None, **kwargs):
+        """folder_id — the id of the folder being renamed, so the
+        per-user uniqueness check below can exclude it from the clash
+        check (a no-op rename mustn't collide with itself)."""
+        super().__init__(*args, **kwargs)
+        self._folder_id = folder_id
+
+    def validate_name(self, field):
+        existing = Folder.query.filter_by(
+            user_id=current_user.id, name=field.data,
+        ).first()
+        if existing is not None and existing.id != self._folder_id:
+            raise ValidationError("You already have a folder with that name.")
+
+
+class FolderDeleteForm(FlaskForm):
+    id = HiddenField()
+    also_delete_decks = BooleanField("Also delete the decks inside", default=False)
+    submit = SubmitField("Delete folder")
 
 
 def _owned_deck_or_404(deck_id):
@@ -304,6 +395,21 @@ def _owned_deck_or_404(deck_id):
     if deck is None or deck.user_id != current_user.id:
         abort(404)
     return deck
+
+
+def _owned_folder_or_404(folder_id):
+    folder = db.session.get(Folder, folder_id)
+    if folder is None or folder.user_id != current_user.id:
+        abort(404)
+    return folder
+
+
+def _delete_deck(deck):
+    """Delete a deck. Cascades to its cards/sessions/attempts via the
+    ORM relationship cascades on Deck — the single source of truth for
+    deck-delete semantics, shared by the single-deck route and the
+    folder 'also delete decks' path so they can't drift apart."""
+    db.session.delete(deck)
 
 
 def _owned_card_or_404(card_id):
@@ -399,27 +505,60 @@ def logout():
 @app.route("/home")
 @login_required
 def home():
-    rows = (
-        db.session.query(Deck, func.count(Card.id))
-        .outerjoin(Card, Card.deck_id == Deck.id)
-        .filter(Deck.user_id == current_user.id)
-        .group_by(Deck.id)
-        .order_by(Deck.created_at.asc())
+    folder_rows = (
+        db.session.query(Folder, func.count(Deck.id))
+        .outerjoin(Deck, Deck.folder_id == Folder.id)
+        .filter(Folder.user_id == current_user.id)
+        .group_by(Folder.id)
+        .order_by(Folder.name.asc())
         .all()
     )
-    decks = [{"deck": d, "card_count": n} for (d, n) in rows]
-    return render_template("home.html", user=current_user, decks=decks)
+    folders = [{"folder": f, "deck_count": n} for (f, n) in folder_rows]
+    unfiled_count = Deck.query.filter_by(user_id=current_user.id, folder_id=None).count()
+    total_decks = Deck.query.filter_by(user_id=current_user.id).count()
+
+    recent_rows = (
+        db.session.query(Deck, Folder, func.count(Card.id))
+        .outerjoin(Folder, Folder.id == Deck.folder_id)
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.user_id == current_user.id)
+        .group_by(Deck.id, Folder.id)
+        .order_by(Deck.last_opened_at.desc().nullslast(), Deck.created_at.desc())
+        .limit(5)
+        .all()
+    )
+    recent = [
+        {"deck": d, "folder": f, "card_count": n}
+        for (d, f, n) in recent_rows
+        if d.last_opened_at is not None
+    ]
+    return render_template(
+        "home.html",
+        user=current_user,
+        folders=folders,
+        unfiled_count=unfiled_count,
+        total_decks=total_decks,
+        recent=recent,
+    )
 
 
 @app.route("/decks/new", methods=["GET", "POST"])
 @login_required
 def deck_new():
     form = DeckForm()
+    if request.method == "GET":
+        # ?folder=<id> pre-selects the dropdown when arriving from a folder view.
+        pre = request.args.get("folder", "")
+        if pre and any(pre == v for v, _ in form.folder_id.choices):
+            form.folder_id.data = pre
     if form.validate_on_submit():
-        deck = Deck(user_id=current_user.id, name=form.name.data)
+        folder_id = _resolve_folder_id(form.folder_id.data)
+        deck = Deck(user_id=current_user.id, name=form.name.data, folder_id=folder_id)
         db.session.add(deck)
         db.session.commit()
         flash(f"Deck “{deck.name}” created.", "info")
+        if folder_id is not None:
+            return redirect(url_for("folder_detail", folder_id=folder_id))
         return redirect(url_for("home"))
     return render_template("deck_form.html", form=form, mode="new")
 
@@ -429,12 +568,27 @@ def deck_new():
 def deck_edit(deck_id):
     deck = _owned_deck_or_404(deck_id)
     form = DeckForm(obj=deck)
+    if request.method == "GET":
+        form.folder_id.data = "" if deck.folder_id is None else str(deck.folder_id)
     if form.validate_on_submit():
         deck.name = form.name.data
+        deck.folder_id = _resolve_folder_id(form.folder_id.data)
         db.session.commit()
-        flash("Deck renamed.", "info")
+        flash("Deck saved.", "info")
         return redirect(url_for("home"))
     return render_template("deck_form.html", form=form, mode="edit", deck=deck)
+
+
+@app.route("/decks/<int:deck_id>/move", methods=["POST"])
+@login_required
+def deck_move(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    form = DeckMoveForm()
+    if form.validate_on_submit():
+        deck.folder_id = _resolve_folder_id(form.folder_id.data)
+        db.session.commit()
+        flash("Deck moved.", "info")
+    return redirect(request.referrer or url_for("home"))
 
 
 @app.route("/decks/<int:deck_id>/delete", methods=["GET", "POST"])
@@ -442,11 +596,113 @@ def deck_edit(deck_id):
 def deck_delete(deck_id):
     deck = _owned_deck_or_404(deck_id)
     if request.method == "POST":
-        db.session.delete(deck)
+        name = deck.name
+        _delete_deck(deck)
         db.session.commit()
-        flash(f"Deck “{deck.name}” deleted.", "info")
+        flash(f"Deck “{name}” deleted.", "info")
         return redirect(url_for("home"))
     return render_template("deck_delete.html", deck=deck)
+
+
+# --- Folders ------------------------------------------------------------
+
+@app.route("/folders", methods=["GET", "POST"])
+@login_required
+def folder_list():
+    form = FolderForm()
+    if form.validate_on_submit():
+        folder = Folder(user_id=current_user.id, name=form.name.data)
+        db.session.add(folder)
+        db.session.commit()
+        flash(f"Folder “{folder.name}” created.", "info")
+        return redirect(url_for("folder_list"))
+
+    rows = (
+        db.session.query(Folder, func.count(Deck.id))
+        .outerjoin(Deck, Deck.folder_id == Folder.id)
+        .filter(Folder.user_id == current_user.id)
+        .group_by(Folder.id)
+        .order_by(Folder.name.asc())
+        .all()
+    )
+    folders = [{"folder": f, "deck_count": n} for (f, n) in rows]
+    unfiled_count = Deck.query.filter_by(user_id=current_user.id, folder_id=None).count()
+    rename_forms = {f["folder"].id: FolderForm(obj=f["folder"], folder_id=f["folder"].id) for f in folders}
+    return render_template(
+        "folders/list.html", form=form, folders=folders,
+        unfiled_count=unfiled_count, rename_forms=rename_forms,
+    )
+
+
+@app.route("/folders/unfiled")
+@login_required
+def folder_unfiled():
+    rows = (
+        db.session.query(Deck, func.count(Card.id))
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.user_id == current_user.id, Deck.folder_id.is_(None))
+        .group_by(Deck.id)
+        .order_by(Deck.created_at.asc())
+        .all()
+    )
+    decks = [{"deck": d, "card_count": n} for (d, n) in rows]
+    return render_template("folders/detail.html", folder=None, decks=decks)
+
+
+@app.route("/folders/<int:folder_id>")
+@login_required
+def folder_detail(folder_id):
+    folder = _owned_folder_or_404(folder_id)
+    rows = (
+        db.session.query(Deck, func.count(Card.id))
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.folder_id == folder.id)
+        .group_by(Deck.id)
+        .order_by(Deck.created_at.asc())
+        .all()
+    )
+    decks = [{"deck": d, "card_count": n} for (d, n) in rows]
+    return render_template("folders/detail.html", folder=folder, decks=decks)
+
+
+@app.route("/folders/<int:folder_id>/rename", methods=["POST"])
+@login_required
+def folder_rename(folder_id):
+    folder = _owned_folder_or_404(folder_id)
+    form = FolderForm(folder_id=folder.id)
+    if form.validate_on_submit():
+        folder.name = form.name.data
+        db.session.commit()
+        flash("Folder renamed.", "info")
+    else:
+        for e in form.name.errors:
+            flash(e, "error")
+    return redirect(url_for("folder_list"))
+
+
+@app.route("/folders/<int:folder_id>/delete", methods=["GET", "POST"])
+@login_required
+def folder_delete(folder_id):
+    folder = _owned_folder_or_404(folder_id)
+    deck_count = Deck.query.filter_by(folder_id=folder.id).count()
+    form = FolderDeleteForm(id=folder.id)
+    if request.method == "POST":
+        form = FolderDeleteForm()
+        if form.validate_on_submit():
+            name = folder.name
+            if form.also_delete_decks.data:
+                decks = Deck.query.filter_by(folder_id=folder.id).all()
+                for d in decks:
+                    _delete_deck(d)
+            # Unchecked: leave decks in place — the FK's ON DELETE SET NULL
+            # nulls their folder_id automatically when the folder row goes.
+            db.session.delete(folder)
+            db.session.commit()
+            flash(f"Folder “{name}” deleted.", "info")
+            return redirect(url_for("folder_list"))
+    return render_template(
+        "folders/delete.html", folder=folder, deck_count=deck_count, form=form,
+    )
 
 
 @app.route("/decks/<int:deck_id>/cards", methods=["GET", "POST"])
@@ -465,6 +721,16 @@ def deck_cards(deck_id):
         .order_by(Card.created_at.asc(), Card.id.asc())
         .all()
     )
+    # Bump last_opened_at on GET only — POST is card-creation, not a
+    # deck-viewing event. Isolated UPDATE via db.session.execute so the
+    # ORM doesn't touch Deck.updated_at (that column belongs to Card).
+    if request.method == "GET":
+        db.session.execute(
+            db.update(Deck)
+            .where(Deck.id == deck.id)
+            .values(last_opened_at=datetime.now(timezone.utc))
+        )
+        db.session.commit()
     return render_template("deck_cards.html", deck=deck, cards=cards, form=form)
 
 

@@ -55,6 +55,16 @@ form.inline { display: inline; margin: 0; }
 .deck-name { font-weight: 600; }
 .deck-count { font-size: .85rem; opacity: .7; }
 .deck-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.folder-chip {
+  display: inline-block; align-self: flex-start;
+  font-size: .75rem; padding: .1rem .5rem;
+  border: 1px solid #8884; border-radius: 1rem;
+  opacity: .8; margin: .1rem 0;
+}
+.folders-section, .recent-section { margin-bottom: 2rem; }
+.folders-section h2, .recent-section h2 { margin-top: 1.5rem; }
+.folder-new-form { display: flex; gap: .5rem; margin-bottom: 1rem; }
+.rename-form { display: inline-flex; gap: .3rem; align-items: center; }
 
 .empty-state {
   padding: 1.5rem; margin-bottom: 1.5rem;

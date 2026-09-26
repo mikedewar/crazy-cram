@@ -13,33 +13,70 @@
   </div>
 </div>
 
-{% if decks %}
-<ul class="deck-list">
-  {% for row in decks %}
-  <li class="deck-row">
-    <div class="deck-info">
-      <span class="deck-name">{{ row.deck.name }}</span>
-      <span class="deck-count">{{ row.card_count }} card{{ '' if row.card_count == 1 else 's' }}</span>
-    </div>
-    <div class="deck-actions">
-      {% if row.card_count > 0 %}
-      <a class="btn" href="{{ url_for('study_config', deck_id=row.deck.id) }}">Study</a>
-      {% else %}
-      <a class="btn" href="#" aria-disabled="true" title="Add cards first">Study</a>
-      {% endif %}
-      <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}">Cards</a>
-      <a class="btn-secondary" href="{{ url_for('deck_edit', deck_id=row.deck.id) }}">Rename</a>
-      <a class="btn-secondary" href="{{ url_for('deck_delete', deck_id=row.deck.id) }}">Delete</a>
-    </div>
-  </li>
-  {% endfor %}
-</ul>
-{% else %}
+{% if total_decks == 0 and not folders %}
 <div class="empty-state">
   <p>You don’t have any decks yet.</p>
   <p>A deck is a collection of question/answer cards you can study together.</p>
+  <p><a class="btn" href="{{ url_for('deck_new') }}">+ New deck</a></p>
 </div>
+{% else %}
+
+<section class="folders-section">
+  <h2>Folders</h2>
+  <ul class="deck-list">
+    <li class="deck-row">
+      <div class="deck-info">
+        <span class="deck-name">Unfiled</span>
+        <span class="deck-count">{{ unfiled_count }} deck{{ '' if unfiled_count == 1 else 's' }}</span>
+      </div>
+      <div class="deck-actions">
+        <a class="btn-secondary" href="{{ url_for('folder_unfiled') }}">View</a>
+      </div>
+    </li>
+    {% for row in folders %}
+    <li class="deck-row">
+      <div class="deck-info">
+        <span class="deck-name">{{ row.folder.name }}</span>
+        <span class="deck-count">{{ row.deck_count }} deck{{ '' if row.deck_count == 1 else 's' }}</span>
+      </div>
+      <div class="deck-actions">
+        <a class="btn-secondary" href="{{ url_for('folder_detail', folder_id=row.folder.id) }}">View</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <p>
+    <a class="btn" href="{{ url_for('deck_new') }}">+ New deck</a>
+    <a class="btn-secondary" href="{{ url_for('folder_list') }}">Manage folders</a>
+  </p>
+</section>
+
+{% if recent %}
+<section class="recent-section">
+  <h2>Recently opened</h2>
+  <ul class="deck-list">
+    {% for row in recent %}
+    <li class="deck-row">
+      <div class="deck-info">
+        <span class="deck-name">{{ row.deck.name }}</span>
+        <span class="folder-chip">{{ row.folder.name if row.folder else 'Unfiled' }}</span>
+        <span class="deck-count">{{ row.card_count }} card{{ '' if row.card_count == 1 else 's' }}</span>
+      </div>
+      <div class="deck-actions">
+        {% if row.card_count > 0 %}
+        <a class="btn" href="{{ url_for('study_config', deck_id=row.deck.id) }}">Study</a>
+        {% else %}
+        <a class="btn" href="#" aria-disabled="true" title="Add cards first">Study</a>
+        {% endif %}
+        <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}">Cards</a>
+        <a class="btn-secondary" href="{{ url_for('deck_edit', deck_id=row.deck.id) }}">Rename</a>
+        <a class="btn-secondary" href="{{ url_for('deck_delete', deck_id=row.deck.id) }}">Delete</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
 {% endif %}
 
-<p><a class="btn" href="{{ url_for('deck_new') }}">+ New deck</a></p>
+{% endif %}
 {% endblock %}

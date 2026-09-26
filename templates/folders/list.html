@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Your folders — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Your folders</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">Back to decks</a>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('folder_list') }}" novalidate class="folder-new-form">
+  {{ form.hidden_tag() }}
+  {{ form.name(placeholder="New folder name", maxlength=64, autofocus=True) }}
+  {{ form.submit }}
+</form>
+{% for e in form.name.errors %}<span class="err">{{ e }}</span>{% endfor %}
+
+{% if folders %}
+<ul class="deck-list">
+  <li class="deck-row">
+    <div class="deck-info">
+      <span class="deck-name">Unfiled</span>
+      <span class="deck-count">{{ unfiled_count }} deck{{ '' if unfiled_count == 1 else 's' }}</span>
+    </div>
+    <div class="deck-actions">
+      <a class="btn-secondary" href="{{ url_for('folder_unfiled') }}">View</a>
+    </div>
+  </li>
+  {% for row in folders %}
+  <li class="deck-row">
+    <div class="deck-info">
+      <span class="deck-name">{{ row.folder.name }}</span>
+      <span class="deck-count">{{ row.deck_count }} deck{{ '' if row.deck_count == 1 else 's' }}</span>
+    </div>
+    <div class="deck-actions">
+      <a class="btn-secondary" href="{{ url_for('folder_detail', folder_id=row.folder.id) }}">View</a>
+      <form method="post" action="{{ url_for('folder_rename', folder_id=row.folder.id) }}" class="inline rename-form">
+        {{ rename_forms[row.folder.id].hidden_tag() }}
+        {{ rename_forms[row.folder.id].name(maxlength=64) }}
+        <button type="submit" class="btn-secondary">Rename</button>
+      </form>
+      <a class="btn-secondary" href="{{ url_for('folder_delete', folder_id=row.folder.id) }}">Delete</a>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<div class="empty-state">
+  <p>You don’t have any folders yet.</p>
+  <p>Folders group decks together — create one above.</p>
+</div>
+{% endif %}
+{% endblock %}

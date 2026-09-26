@@ -36,7 +36,9 @@ def test_home_empty_state_shows_prompt(client, invite):
     assert b"New deck" in r.data
 
 
-def test_home_lists_own_decks_with_card_counts(client, invite, app):
+def test_home_lists_recently_opened_decks_with_card_counts(client, invite, app):
+    """Under the folders redesign, home's deck list is 'Recently opened' —
+    only decks the user has actually opened (last_opened_at IS NOT NULL)."""
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
     d1 = app.Deck(user_id=alice.id, name="French")
@@ -46,6 +48,10 @@ def test_home_lists_own_decks_with_card_counts(client, invite, app):
     app.db.session.add(app.Card(deck_id=d1.id, question="chat", answer="cat"))
     app.db.session.add(app.Card(deck_id=d1.id, question="chien", answer="dog"))
     app.db.session.commit()
+
+    # Simulate opening both decks (bumps last_opened_at).
+    client.get(f"/decks/{d1.id}/cards")
+    client.get(f"/decks/{d2.id}/cards")
 
     r = client.get("/home")
     assert r.status_code == 200
@@ -64,6 +70,7 @@ def test_home_singular_card_count(client, invite, app):
     app.db.session.add(app.Card(deck_id=d.id, question="q", answer="a"))
     app.db.session.commit()
 
+    client.get(f"/decks/{d.id}/cards")   # open it so it surfaces on home
     r = client.get("/home")
     assert b"1 card" in r.data
     assert b"1 cards" not in r.data

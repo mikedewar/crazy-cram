@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Delete folder — Crazy-Cram{% endblock %}
+{% block content %}
+<h1>Delete folder</h1>
+<p>Really delete <strong>{{ folder.name }}</strong>?</p>
+<p>This folder contains {{ deck_count }} deck{{ '' if deck_count == 1 else 's' }}.</p>
+<form method="post">
+  {{ form.hidden_tag() }}
+  <p>
+    <label>{{ form.also_delete_decks() }} {{ form.also_delete_decks.label.text }}</label>
+  </p>
+  <p class="muted">Leave unchecked to keep the decks — they move to Unfiled instead. Check it to delete them too, along with their cards and study history. This can’t be undone.</p>
+  <p>
+    <button type="submit" class="btn-danger">Delete folder</button>
+    <a class="btn-secondary" href="{{ url_for('folder_list') }}">Cancel</a>
+  </p>
+</form>
+{% endblock %}
