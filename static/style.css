@@ -193,3 +193,14 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 .account-panel h2 { margin-top: 0; font-size: 1.1rem; }
 .account-panel.danger { border-color: #c3413a55; }
 .account-panel.danger h2 { color: #c3413a; }
+
+/* --- Admin -------------------------------------------------------- */
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.admin-table th, .admin-table td {
+  text-align: left; padding: .4rem .6rem;
+  border-bottom: 1px solid #8884;
+}
+.admin-table th { font-weight: 600; }
+.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.admin-table code { font-size: .9em; }

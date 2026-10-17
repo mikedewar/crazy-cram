@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Admin — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Admin</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+  </div>
+</div>
+
+<p class="muted">
+  {{ stats.users_total }} / {{ stats.users_cap }} users ·
+  {{ stats.invites_used }} invites used, {{ stats.invites_free }} unused
+  ({{ stats.invites_total }} total)
+</p>
+
+<section class="account-panel">
+  <h2>Users</h2>
+  {% if user_rows %}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Joined</th>
+        <th class="num">Decks</th>
+        <th class="num">Cards</th>
+        <th class="num">Sessions</th>
+        <th>Last session</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in user_rows %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td>{{ u.created_at.strftime('%Y-%m-%d %H:%M') if u.created_at else '—' }}</td>
+        <td class="num">{{ u.decks }}</td>
+        <td class="num">{{ u.cards }}</td>
+        <td class="num">{{ u.sessions }}</td>
+        <td>{{ u.last_session_at.strftime('%Y-%m-%d %H:%M') if u.last_session_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No users yet.</p>
+  {% endif %}
+</section>
+
+<section class="account-panel">
+  <h2>Invites</h2>
+  {% if invite_rows %}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Code</th>
+        <th>Created</th>
+        <th>Status</th>
+        <th>Used by</th>
+        <th>Used at</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for iv in invite_rows %}
+      <tr>
+        <td><code>{{ iv.code }}</code></td>
+        <td>{{ iv.created_at.strftime('%Y-%m-%d %H:%M') if iv.created_at else '—' }}</td>
+        <td>{{ 'used' if iv.used_at else 'unused' }}</td>
+        <td>{{ iv.used_by or '—' }}</td>
+        <td>{{ iv.used_at.strftime('%Y-%m-%d %H:%M') if iv.used_at else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No invites yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

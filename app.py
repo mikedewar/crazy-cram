@@ -148,6 +148,24 @@ CARD_SIDE_MAX = 500
 DECK_NAME_MAX = 120
 FOLDER_NAME_MAX = 64
 
+DECK_PALETTE = [
+    "#ffd6d6",  # peach
+    "#ffe8c2",  # apricot
+    "#fff4b8",  # butter
+    "#dff5c5",  # sage
+    "#c8ecd6",  # mint
+    "#c8e6f2",  # sky
+    "#d6dcf5",  # lavender
+    "#e8d1f2",  # lilac
+    "#f5cfe1",  # rose
+    "#e8dfd0",  # sand
+]
+
+
+def random_deck_color():
+    import secrets
+    return secrets.choice(DECK_PALETTE)
+
 
 class Folder(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -178,6 +196,7 @@ class Deck(db.Model):
         nullable=True, index=True,
     )
     last_opened_at = db.Column(db.DateTime, nullable=True, index=True)
+    color = db.Column(db.String(9), nullable=True)
 
     user = db.relationship("User", backref=db.backref("decks", cascade="all, delete-orphan", passive_deletes=True))
     folder = db.relationship("Folder", backref=db.backref("decks", passive_deletes=True))
@@ -353,6 +372,7 @@ class DeckForm(FlaskForm):
         filters=[lambda v: v.strip() if isinstance(v, str) else v],
     )
     folder_id = SelectField("Folder", choices=[], validate_choice=False, default="")
+    color = StringField("Colour", default="")
     submit = SubmitField("Save deck")
 
     def __init__(self, *args, **kwargs):
@@ -561,14 +581,18 @@ def deck_new():
             form.folder_id.data = pre
     if form.validate_on_submit():
         folder_id = _resolve_folder_id(form.folder_id.data)
-        deck = Deck(user_id=current_user.id, name=form.name.data, folder_id=folder_id)
+        color = form.color.data if form.color.data in DECK_PALETTE else random_deck_color()
+        deck = Deck(
+            user_id=current_user.id, name=form.name.data,
+            folder_id=folder_id, color=color,
+        )
         db.session.add(deck)
         db.session.commit()
         flash(f"Deck “{deck.name}” created.", "info")
         if folder_id is not None:
             return redirect(url_for("folder_detail", folder_id=folder_id))
         return redirect(url_for("home"))
-    return render_template("deck_form.html", form=form, mode="new")
+    return render_template("deck_form.html", form=form, mode="new", palette=DECK_PALETTE)
 
 
 @app.route("/decks/<int:deck_id>/edit", methods=["GET", "POST"])
@@ -581,10 +605,12 @@ def deck_edit(deck_id):
     if form.validate_on_submit():
         deck.name = form.name.data
         deck.folder_id = _resolve_folder_id(form.folder_id.data)
+        if form.color.data in DECK_PALETTE:
+            deck.color = form.color.data
         db.session.commit()
         flash("Deck saved.", "info")
         return redirect(url_for("home"))
-    return render_template("deck_form.html", form=form, mode="edit", deck=deck)
+    return render_template("deck_form.html", form=form, mode="edit", deck=deck, palette=DECK_PALETTE)
 
 
 @app.route("/decks/<int:deck_id>/move", methods=["POST"])
@@ -1103,6 +1129,87 @@ def health():
     except Exception as e:  # pragma: no cover — verified via mocked engine failure
         return jsonify(status="error", version=VERSION, db="unreachable", detail=str(e)), 503
     return jsonify(status="ok", version=VERSION, db="ok"), 200
+
+
+# --- Admin -----------------------------------------------------------
+# Read-only overview for the site owner. Gated by username, not a role
+# column — fewer moving parts, no schema change. If the owner ever
+# changes, swap the env var.
+
+ADMIN_USERNAME = os.environ.get("CRAZY_CRAM_ADMIN_USERNAME", "mikedewar")
+
+
+def _require_admin():
+    if not current_user.is_authenticated or current_user.username != ADMIN_USERNAME:
+        abort(404)
+
+
+@app.route("/admin")
+@login_required
+def admin():
+    _require_admin()
+
+    users = User.query.order_by(User.created_at.asc()).all()
+
+    deck_counts = dict(
+        db.session.query(Deck.user_id, func.count(Deck.id)).group_by(Deck.user_id).all()
+    )
+    card_counts = dict(
+        db.session.query(Deck.user_id, func.count(Card.id))
+        .join(Card, Card.deck_id == Deck.id)
+        .group_by(Deck.user_id)
+        .all()
+    )
+    session_counts = dict(
+        db.session.query(StudySession.user_id, func.count(StudySession.id))
+        .group_by(StudySession.user_id)
+        .all()
+    )
+    last_session_at = dict(
+        db.session.query(StudySession.user_id, func.max(StudySession.started_at))
+        .group_by(StudySession.user_id)
+        .all()
+    )
+
+    user_rows = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "created_at": u.created_at,
+            "decks": deck_counts.get(u.id, 0),
+            "cards": card_counts.get(u.id, 0),
+            "sessions": session_counts.get(u.id, 0),
+            "last_session_at": last_session_at.get(u.id),
+        }
+        for u in users
+    ]
+
+    invites = InviteCode.query.order_by(InviteCode.created_at.asc()).all()
+    username_by_id = {u.id: u.username for u in users}
+    invite_rows = [
+        {
+            "code": iv.code,
+            "created_at": iv.created_at,
+            "used_at": iv.used_at,
+            "used_by": username_by_id.get(iv.used_by) if iv.used_by else None,
+        }
+        for iv in invites
+    ]
+
+    stats = {
+        "users_total": len(users),
+        "users_cap": MAX_USERS,
+        "invites_total": len(invites),
+        "invites_used": sum(1 for iv in invites if iv.used_at),
+        "invites_free": sum(1 for iv in invites if not iv.used_at),
+    }
+
+    return render_template(
+        "admin.html",
+        user_rows=user_rows,
+        invite_rows=invite_rows,
+        stats=stats,
+    )
 
 
 # --- Account self-service --------------------------------------------
