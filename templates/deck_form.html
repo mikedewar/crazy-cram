@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ 'New deck' if mode == 'new' else 'Rename deck' }} — Crazy-Cram{% endblock %}
+{% block title %}{{ 'New deck' if mode == 'new' else 'Edit deck' }} — Crazy-Cram{% endblock %}
 {% block content %}
-<h1>{{ 'New deck' if mode == 'new' else 'Rename deck' }}</h1>
+<h1>{{ 'New deck' if mode == 'new' else 'Edit deck' }}</h1>
 <form method="post" novalidate>
   {{ form.hidden_tag() }}
   <p>
@@ -13,6 +13,22 @@
     {{ form.folder_id.label }}<br>
     {{ form.folder_id() }}
   </p>
+  {% if palette %}
+  {% set current_color = (deck.color if deck else '') or form.color.data %}
+  <p>
+    {{ form.color.label }}<br>
+    <span class="swatch-grid" role="radiogroup" aria-label="Deck colour">
+      {% for c in palette %}
+      <label class="swatch" style="background-color: {{ c }}"
+             title="{{ c }}">
+        <input type="radio" name="color" value="{{ c }}"
+               {% if current_color == c %}checked{% endif %}>
+        <span class="swatch-check" aria-hidden="true">✓</span>
+      </label>
+      {% endfor %}
+    </span>
+  </p>
+  {% endif %}
   <p>
     {{ form.submit }}
     <a class="btn-secondary" href="{{ url_for('home') }}">Cancel</a>

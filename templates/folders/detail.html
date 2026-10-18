@@ -9,22 +9,35 @@
 </div>
 
 {% if decks %}
-<ul class="deck-list">
+<ul class="deck-grid">
   {% for row in decks %}
-  <li class="deck-row">
-    <div class="deck-info">
+  <li class="deck-tile"{% if row.deck.color %} style="background-color: {{ row.deck.color }}"{% endif %}>
+    <a class="deck-tile-link" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}"
+       aria-label="Open cards in {{ row.deck.name }}"></a>
+    <div class="deck-tile-name">
       <span class="deck-name">{{ row.deck.name }}</span>
       <span class="deck-count">{{ row.card_count }} card{{ '' if row.card_count == 1 else 's' }}</span>
     </div>
-    <div class="deck-actions">
+    <div class="deck-tile-actions">
       {% if row.card_count > 0 %}
       <a class="btn" href="{{ url_for('study_config', deck_id=row.deck.id) }}">Study</a>
       {% else %}
       <a class="btn" href="#" aria-disabled="true" title="Add cards first">Study</a>
       {% endif %}
-      <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}">Cards</a>
-      <a class="btn-secondary" href="{{ url_for('deck_edit', deck_id=row.deck.id) }}">Rename</a>
-      <a class="btn-secondary" href="{{ url_for('deck_delete', deck_id=row.deck.id) }}">Delete</a>
+      <span class="deck-tile-icons">
+        <a class="icon-btn"
+           href="{{ url_for('deck_edit', deck_id=row.deck.id) }}"
+           aria-label="Edit deck {{ row.deck.name }}"
+           title="Edit deck">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
+        </a>
+        <a class="icon-btn icon-btn-danger"
+           href="{{ url_for('deck_delete', deck_id=row.deck.id) }}"
+           aria-label="Delete deck {{ row.deck.name }}"
+           title="Delete deck">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg>
+        </a>
+      </span>
     </div>
   </li>
   {% endfor %}
