@@ -8,6 +8,7 @@
 
 <h1 class="study-question">{{ attempt.card_snapshot_q }}</h1>
 
+{% if attempt.card_type == "written" %}
 <form method="post" action="{{ url_for('study_submit', session_id=session.id) }}" class="study-answer">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
@@ -15,8 +16,35 @@
   <input type="text" name="answer" id="answer" autocomplete="off"
          autocapitalize="off" spellcheck="false" autofocus
          maxlength="500">
-  <p><button type="submit">Submit (Enter)</button></p>
+  <p>
+    <button type="submit">Submit (Enter)</button>
+    <button type="submit" name="skip" value="1" class="btn-secondary">Skip</button>
+  </p>
 </form>
+
+{% elif attempt.card_type == "mc" %}
+<form method="post" action="{{ url_for('study_submit', session_id=session.id) }}" class="study-answer study-mc">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
+  <div class="mc-options">
+    {% for opt in options %}
+    <button type="submit" name="answer" value="{{ opt }}" class="mc-option">{{ opt }}</button>
+    {% endfor %}
+  </div>
+  <p><button type="submit" name="skip" value="1" class="btn-secondary">Skip</button></p>
+</form>
+
+{% elif attempt.card_type == "tf" %}
+<form method="post" action="{{ url_for('study_submit', session_id=session.id) }}" class="study-answer study-tf">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
+  <div class="tf-options">
+    <button type="submit" name="answer" value="true" class="tf-option tf-true">True</button>
+    <button type="submit" name="answer" value="false" class="tf-option tf-false">False</button>
+  </div>
+  <p><button type="submit" name="skip" value="1" class="btn-secondary">Skip</button></p>
+</form>
+{% endif %}
 
 <p class="muted"><a href="{{ url_for('home') }}">Quit to decks</a></p>
 {% endblock %}

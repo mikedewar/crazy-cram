@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.2.0 — 2026-10-18
+
+**Card types.** Multiple-choice and true/false alongside written cards.
+
+- `Card.card_type` ∈ `{written, mc, tf}`, chosen at creation, **immutable once set**. Default `written`.
+- Multiple-choice has 4 options:
+  - **Random mode (default):** three distractors drawn from other answers in the same deck at study time. Deck must contain ≥ 4 cards to study a random-mode MC card.
+  - **Fixed mode:** the author supplies three distractors (`CardDistractor` rows). Switching fixed → random forgets the stored distractors.
+- True/false stores literal `"true"`/`"false"` in `card.answer`; options are rendered as two large buttons.
+- Mixed types per deck are allowed. Study session materialises each card's option list up front, so a config error (e.g. MC-random in a 3-card deck) fails cleanly before any session rows are written.
+- Skip is now a dedicated button on all three card types (MC/TF click = commit; blank/off-pool POSTs count as skip, not 400).
+- Study results page shows exactly what the student saw — the full ordered option list per MC/TF attempt — via a snapshot `study_attempt.options_json` so history survives card edits.
+- No partial credit; no diff rendering for MC/TF.
+- Alembic migration `0006_card_types` is additive: new columns nullable → backfilled `"written"` on existing rows → marked `NOT NULL`. 240 cards + 1141 attempts preserved on dry-run of the live DB.
+- 237 tests green (was 213; +24 covering type creation, validation, immutability, random pool, study flow, results rendering).
+
+## v1.1.1 — 2026-10 unreleased polish
+
+Minor UI + admin that shipped between v1.1.0 and v1.2.0; bundled under this changelog entry for honesty.
+
+- Deck colours (tile UI, selectable hue per deck) and the colour migration `0005_deck_color`.
+- Read-only `/admin` page gated to `CRAZY_CRAM_ADMIN_USERNAME`.
+- Left sidebar with home + GitHub links; Saira (Google Fonts) throughout.
+- Inline "New folder" form replaced with a button next to "New deck".
+- Version-stamped CSS URL so cache busts cleanly on deploy.
+
 ## v1.1.0 — 2026-09-26
 
 **Folders.** A one-level organisation layer above decks, plus a "Recently opened" section on the landing page.

@@ -16,7 +16,11 @@
   <li class="card-row">
     <div class="card-sides">
       <div class="card-side"><span class="card-label">Q</span> <span class="card-text">{{ c.question }}</span></div>
-      <div class="card-side"><span class="card-label">A</span> <span class="card-text">{{ c.answer }}</span></div>
+      <div class="card-side">
+        <span class="card-label">A</span>
+        <span class="card-text">{{ c.answer }}</span>
+        <span class="card-type-badge card-type-{{ c.card_type }}">{{ {'written':'written','mc':'MC','tf':'T/F'}[c.card_type] }}</span>
+      </div>
     </div>
     <div class="card-actions">
       <a class="btn-secondary" href="{{ url_for('card_edit', card_id=c.id) }}">Edit</a>
@@ -36,18 +40,103 @@
 {% endif %}
 
 <h2>Add a card</h2>
-<form method="post" novalidate>
+<form method="post" novalidate class="card-form">
   {{ form.hidden_tag() }}
+
+  <fieldset class="card-type-selector">
+    <legend>Type</legend>
+    {% for subfield in form.card_type %}
+      <label class="radio-inline">
+        {{ subfield }} {{ subfield.label.text }}
+      </label>
+    {% endfor %}
+    {% for e in form.card_type.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </fieldset>
+
   <p>
     {{ form.question.label }}<br>
     {{ form.question(rows=2, maxlength=500, autofocus=True) }}
     {% for e in form.question.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </p>
-  <p>
-    {{ form.answer.label }}<br>
-    {{ form.answer(rows=2, maxlength=500) }}
-    {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </p>
+
+  <div class="type-block type-written" data-for-type="written"
+       {% if form.card_type.data != 'written' %}hidden{% endif %}>
+    <p>
+      <label for="answer">Answer</label><br>
+      {{ form.answer(rows=2, maxlength=500) }}
+      {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+  </div>
+
+  <div class="type-block type-mc" data-for-type="mc"
+       {% if form.card_type.data != 'mc' %}hidden{% endif %}>
+    <p>
+      <label for="answer">Correct answer</label><br>
+      {{ form.answer(rows=2, maxlength=500) }}
+      {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+    <fieldset>
+      <legend>Distractors</legend>
+      {% for subfield in form.mc_mode %}
+        <label class="radio-inline">
+          {{ subfield }} {{ subfield.label.text }}
+        </label>
+      {% endfor %}
+    </fieldset>
+    <div class="mc-fixed-block"
+         {% if (form.mc_mode.data or 'random') != 'fixed' %}hidden{% endif %}>
+      <p>
+        {{ form.distractor_1.label }}<br>
+        {{ form.distractor_1(maxlength=500) }}
+        {% for e in form.distractor_1.errors %}<span class="err">{{ e }}</span>{% endfor %}
+      </p>
+      <p>
+        {{ form.distractor_2.label }}<br>
+        {{ form.distractor_2(maxlength=500) }}
+        {% for e in form.distractor_2.errors %}<span class="err">{{ e }}</span>{% endfor %}
+      </p>
+      <p>
+        {{ form.distractor_3.label }}<br>
+        {{ form.distractor_3(maxlength=500) }}
+        {% for e in form.distractor_3.errors %}<span class="err">{{ e }}</span>{% endfor %}
+      </p>
+    </div>
+    <p class="muted">Random mode draws three other answers from this deck. The deck needs at least four cards to study a random-mode card.</p>
+  </div>
+
+  <div class="type-block type-tf" data-for-type="tf"
+       {% if form.card_type.data != 'tf' %}hidden{% endif %}>
+    <fieldset>
+      <legend>Correct answer</legend>
+      {% for subfield in form.tf_correct %}
+        <label class="radio-inline">
+          {{ subfield }} {{ subfield.label.text }}
+        </label>
+      {% endfor %}
+    </fieldset>
+  </div>
+
   <p>{{ form.submit }}</p>
 </form>
+
+<script>
+(function () {
+  var form = document.querySelector('form.card-form');
+  if (!form) return;
+  function show(type) {
+    form.querySelectorAll('.type-block').forEach(function (b) {
+      b.hidden = (b.dataset.forType !== type);
+    });
+  }
+  form.querySelectorAll('input[name="card_type"]').forEach(function (r) {
+    r.addEventListener('change', function () { show(r.value); });
+  });
+  var mcFixed = form.querySelector('.mc-fixed-block');
+  form.querySelectorAll('input[name="mc_mode"]').forEach(function (r) {
+    r.addEventListener('change', function () {
+      if (mcFixed) mcFixed.hidden = (r.value !== 'fixed');
+    });
+  });
+})();
+</script>
 {% endblock %}

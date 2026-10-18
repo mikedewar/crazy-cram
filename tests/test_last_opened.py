@@ -166,14 +166,13 @@ def test_home_recent_unfiled_deck_shows_unfiled_chip(client, invite, app):
     assert body.count("Unfiled") >= 2
 
 
-def test_home_has_new_folder_form(client, invite):
-    """Home page exposes an inline 'New folder' form posting to /folders."""
+def test_home_has_new_folder_link(client, invite):
+    """Home page exposes an entry point to the new-folder form."""
     _register(client, invite, "alice")
     r = client.get("/home")
     assert r.status_code == 200
     body = r.data.decode()
-    assert 'action="/folders"' in body
-    assert 'placeholder="New folder name"' in body
+    assert "/folders/new" in body
 
 
 def test_home_new_folder_form_creates_folder(client, invite, app):
