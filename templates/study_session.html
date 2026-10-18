@@ -11,11 +11,25 @@
 <form method="post" action="{{ url_for('study_submit', session_id=session.id) }}" class="study-answer">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
-  <label for="answer">Your answer</label>
-  <input type="text" name="answer" id="answer" autocomplete="off"
-         autocapitalize="off" spellcheck="false" autofocus
-         maxlength="500">
-  <p><button type="submit">Submit (Enter)</button></p>
+  {% if options %}
+    <fieldset class="mc-options">
+      <legend>Pick an answer</legend>
+      {% for opt in options %}
+        <label class="mc-option">
+          <input type="radio" name="answer" value="{{ opt }}" required
+                 {% if loop.first %}autofocus{% endif %}>
+          <span>{{ opt }}</span>
+        </label>
+      {% endfor %}
+    </fieldset>
+    <p><button type="submit">Submit</button></p>
+  {% else %}
+    <label for="answer">Your answer</label>
+    <input type="text" name="answer" id="answer" autocomplete="off"
+           autocapitalize="off" spellcheck="false" autofocus
+           maxlength="500">
+    <p><button type="submit">Submit (Enter)</button></p>
+  {% endif %}
 </form>
 
 <p class="muted"><a href="{{ url_for('home') }}">Quit to decks</a></p>

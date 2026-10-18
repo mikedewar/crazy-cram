@@ -32,6 +32,19 @@
         <div class="result-a">
           <span class="result-label">✓</span> <span>{{ a.student_answer }}</span>
         </div>
+      {% elif session.mode == 'mc' %}
+        <div class="result-a">
+          <span class="result-label">You</span>
+          {% if a.student_answer %}
+            <span>{{ a.student_answer }}</span>
+          {% else %}
+            <em class="muted">(no pick)</em>
+          {% endif %}
+        </div>
+        <div class="result-a">
+          <span class="result-label">Correct</span>
+          <span>{{ a.card_snapshot_a }}</span>
+        </div>
       {% else %}
         <div class="result-a">
           <span class="result-label">You</span>

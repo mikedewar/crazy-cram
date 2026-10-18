@@ -20,9 +20,12 @@
     </div>
     <div class="deck-tile-actions">
       {% if row.card_count > 0 %}
-      <a class="btn" href="{{ url_for('study_config', deck_id=row.deck.id) }}">Study</a>
+      <a class="btn" href="{{ url_for('study_config', deck_id=row.deck.id) }}">Written study</a>
+        {% if row.card_count >= 4 %}
+      <a class="btn" href="{{ url_for('study_config', deck_id=row.deck.id, mode='mc') }}">Multiple choice</a>
+        {% endif %}
       {% else %}
-      <a class="btn" href="#" aria-disabled="true" title="Add cards first">Study</a>
+      <a class="btn" href="#" aria-disabled="true" title="Add cards first">Written study</a>
       {% endif %}
       <span class="deck-tile-icons">
         <a class="icon-btn"

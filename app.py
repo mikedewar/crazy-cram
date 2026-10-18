@@ -145,6 +145,11 @@ class InviteCode(db.Model):
 
 
 CARD_SIDE_MAX = 500
+
+# MC study mode: 1 correct + 3 distractors drawn from other cards in the deck.
+MC_OPTIONS_PER_QUESTION = 4
+MC_MIN_DECK_SIZE = MC_OPTIONS_PER_QUESTION  # need at least this many cards to run MC
+STUDY_MODES = ("written", "mc")
 DECK_NAME_MAX = 120
 FOLDER_NAME_MAX = 64
 
@@ -242,6 +247,7 @@ class StudySession(db.Model):
     )
     n_cards = db.Column(db.Integer, nullable=False)
     shuffled = db.Column(db.Boolean, nullable=False, default=True)
+    mode = db.Column(db.String(16), nullable=False, default="written")
     started_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     finished_at = db.Column(db.DateTime, nullable=True)
     score = db.Column(db.Integer, nullable=True)
@@ -876,6 +882,39 @@ def char_diff_ops(student_answer, correct_answer):
     return student_side, correct_side
 
 
+def mc_options_for(attempt):
+    """Pick MC options for an attempt: correct answer + 3 distractors.
+
+    Distractors are drawn from *other* cards in the same deck, by looking at
+    the current cards (not snapshots) via the attempt's session.deck_id.
+    Dedupes on normalized text so two cards with the same answer don't both
+    appear. If fewer than 3 unique distractors exist the deck has shrunk
+    since start — fall back to whatever we have, options list < 4.
+
+    Returns a shuffled list of plain strings.
+    """
+    correct = attempt.card_snapshot_a
+    correct_norm = normalize_answer(correct)
+    sibling_answers = (
+        db.session.query(Card.answer)
+        .filter(Card.deck_id == attempt.session.deck_id)
+        .filter(Card.id != attempt.card_id)
+        .all()
+    )
+    seen = {correct_norm}
+    pool = []
+    for (ans,) in sibling_answers:
+        norm = normalize_answer(ans)
+        if norm in seen:
+            continue
+        seen.add(norm)
+        pool.append(ans)
+    distractors = random.sample(pool, min(MC_OPTIONS_PER_QUESTION - 1, len(pool)))
+    options = [correct, *distractors]
+    random.shuffle(options)
+    return options
+
+
 class StudyConfigForm(FlaskForm):
     n_cards = IntegerField(
         "How many cards?",
@@ -908,10 +947,21 @@ def study_config(deck_id):
     )
     total = len(cards)
 
+    mode = request.values.get("mode", "written")
+    if mode not in STUDY_MODES:
+        mode = "written"
+    if mode == "mc" and total < MC_MIN_DECK_SIZE:
+        # Not enough cards to generate 3 distractors — bump to written.
+        flash(
+            f"Multiple choice needs at least {MC_MIN_DECK_SIZE} cards in the deck.",
+            "error",
+        )
+        return redirect(url_for("study_config", deck_id=deck.id))
+
     if total == 0:
         # No form / no Start button — the template shows a link to add cards.
         return render_template(
-            "study_config.html", deck=deck, total=0, form=None,
+            "study_config.html", deck=deck, total=0, form=None, mode=mode,
         )
 
     form = StudyConfigForm()
@@ -933,6 +983,7 @@ def study_config(deck_id):
             deck_id=deck.id,
             n_cards=n,
             shuffled=shuffled,
+            mode=mode,
         )
         db.session.add(s)
         db.session.flush()
@@ -948,12 +999,12 @@ def study_config(deck_id):
         _log_event(
             "study_session_start",
             user_id=current_user.id, session_id=s.id,
-            deck_id=deck.id, n_cards=n, shuffled=shuffled,
+            deck_id=deck.id, n_cards=n, shuffled=shuffled, mode=mode,
         )
         return redirect(url_for("study_session", session_id=s.id))
 
     return render_template(
-        "study_config.html", deck=deck, total=total, form=form,
+        "study_config.html", deck=deck, total=total, form=form, mode=mode,
     )
 
 
@@ -977,10 +1028,12 @@ def study_session(session_id):
         # Shouldn't happen — finalize defensively and redirect to results.
         _finalize_session(s)
         return redirect(url_for("study_results", session_id=s.id))
+    options = mc_options_for(attempt) if s.mode == "mc" else None
     return render_template(
         "study_session.html",
         session=s, attempt=attempt,
         position=attempt.position + 1, total=s.n_cards,
+        options=options,
     )
 
 
@@ -1051,7 +1104,9 @@ def study_results(session_id):
     rows = []
     for a in attempts:
         student_side, correct_side = ([], [])
-        if not a.is_correct:
+        # Only produce a char-diff for written mode — MC picks are whole-string
+        # choices, there's nothing to diff char-by-char.
+        if not a.is_correct and s.mode == "written":
             student_side, correct_side = char_diff_ops(
                 a.student_answer or "", a.card_snapshot_a
             )
@@ -1092,11 +1147,22 @@ def study_restart(session_id):
         random.shuffle(chosen)
     chosen = chosen[:n]
 
+    # Carry over mode. If the deck shrank below MC's floor, fall back to written
+    # rather than exploding — the student still gets a session.
+    new_mode = old.mode
+    if new_mode == "mc" and len(cards) < MC_MIN_DECK_SIZE:
+        new_mode = "written"
+        flash(
+            f"Multiple choice needs at least {MC_MIN_DECK_SIZE} cards — restarted in written mode.",
+            "info",
+        )
+
     s = StudySession(
         user_id=current_user.id,
         deck_id=deck.id,
         n_cards=n,
         shuffled=old.shuffled,
+        mode=new_mode,
     )
     db.session.add(s)
     db.session.flush()
@@ -1113,7 +1179,7 @@ def study_restart(session_id):
         "study_session_start",
         user_id=current_user.id, session_id=s.id,
         deck_id=deck.id, n_cards=n, shuffled=old.shuffled,
-        restart_of=old.id,
+        mode=new_mode, restart_of=old.id,
     )
     return redirect(url_for("study_session", session_id=s.id))
 

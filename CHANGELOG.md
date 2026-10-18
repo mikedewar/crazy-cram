@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.3.0 — 2026-10-18
+
+**Multiple-choice as a study mode, not a card type.** Decks with ≥4 cards get a
+"Multiple choice" button next to "Written study". Picks 1 correct + 3 random
+distractors from other cards' answers in the same deck; options are generated
+per-attempt at render time (not persisted). Keeps the single schema path we had
+in v1.1.1 — no `card_type`, no per-card distractor table.
+
+- `StudySession.mode` ('written' | 'mc'), default 'written'. Existing sessions
+  backfill as 'written'.
+- `/decks/<id>/study?mode=mc` starts an MC session when the deck has ≥4 cards;
+  below that, redirects to written-mode config with a flash. Bogus modes fall
+  back to written.
+- Study page renders a radio group when `session.mode == 'mc'`; same submit
+  path, same `answers_match()` scoring (exact string match).
+- Results page drops the char-diff view for MC rows — picks aren't typed, so
+  "You picked X / Correct was Y" is clearer than a per-char diff.
+- Restart carries the mode forward; if the deck shrank below MC's floor between
+  sessions, restart falls back to written mode with a flash.
+- Deck tiles on `/home` and `/folders/<id>` now label the first study button
+  "Written study"; "Multiple choice" appears only when `card_count >= 4`.
+- Migration `0006_study_mode` wraps `batch_alter_table` in `_fks_off()` to
+  stop the SQLite rebuild from cascading `study_attempt` wipeouts — same
+  pattern as the (now-reverted) card-types fix. Rehearsed on a byte-identical
+  copy of the live DB: 11 users / 19 decks / 244 cards / 70 sessions / 1146
+  attempts preserved on upgrade; 0 null card_ids before or after.
+- 231 tests green (+18: 15 MC behaviour + 3 migration regression against a
+  file-backed SQLite DB).
+
 ## v1.1.2 — 2026-10-18
 
 **Roll back card types.** v1.2.0 (card types: written / MC / TF) and the
