@@ -1,143 +1,31 @@
 {% extends "base.html" %}
-{% block title %}{% if card %}Edit card{% else %}New card{% endif %} — Crazy-Cram{% endblock %}
+{% block title %}Edit card — Crazy-Cram{% endblock %}
 {% block content %}
-<h1>{% if card %}Edit card{% else %}New card{% endif %}</h1>
+<h1>Edit card</h1>
 {% if return_session %}
 <p class="muted">From: <a href="{{ url_for('study_results', session_id=return_session.id) }}">Results</a> — {{ card.deck.name }}</p>
-{% elif card %}
+{% else %}
 <p class="muted">Deck: <a href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">{{ card.deck.name }}</a></p>
 {% endif %}
-<form method="post" novalidate action="{% if card and return_session %}{{ url_for('card_edit', card_id=card.id, return_to=return_session.id) }}{% elif card %}{{ url_for('card_edit', card_id=card.id) }}{% endif %}" class="card-form">
+<form method="post" novalidate action="{% if return_session %}{{ url_for('card_edit', card_id=card.id, return_to=return_session.id) }}{% else %}{{ url_for('card_edit', card_id=card.id) }}{% endif %}">
   {{ form.hidden_tag() }}
-
-  {% if form.is_new %}
-  <fieldset class="card-type-selector">
-    <legend>Type</legend>
-    {% for subfield in form.card_type %}
-      <label class="radio-inline">
-        {{ subfield }} {{ subfield.label.text }}
-      </label>
-    {% endfor %}
-    {% for e in form.card_type.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </fieldset>
-  {% else %}
-  <p class="muted">Type: <strong>{{ {'written':'Written','mc':'Multiple choice','tf':'True / False'}[card.card_type] }}</strong> (type is set at card creation).</p>
-  {% endif %}
-
   <p>
     {{ form.question.label }}<br>
     {{ form.question(rows=3, maxlength=500, autofocus=True) }}
     {% for e in form.question.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </p>
-
-  {# --- Written-only --- #}
-  <div class="type-block type-written" data-for-type="written"
-       {% if form.is_new and form.card_type.data != 'written' %}hidden{% elif not form.is_new and card.card_type != 'written' %}hidden{% endif %}>
-    <p>
-      <label for="answer">Answer</label><br>
-      {{ form.answer(rows=3, maxlength=500) }}
-      {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
-    </p>
-  </div>
-
-  {# --- Multiple choice --- #}
-  <div class="type-block type-mc" data-for-type="mc"
-       {% if form.is_new and form.card_type.data != 'mc' %}hidden{% elif not form.is_new and card.card_type != 'mc' %}hidden{% endif %}>
-    <p>
-      <label for="answer">Correct answer</label><br>
-      {{ form.answer(rows=2, maxlength=500) }}
-      {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
-    </p>
-    <fieldset>
-      <legend>Distractors</legend>
-      {% for subfield in form.mc_mode %}
-        <label class="radio-inline">
-          {{ subfield }} {{ subfield.label.text }}
-        </label>
-      {% endfor %}
-      {% for e in form.mc_mode.errors %}<span class="err">{{ e }}</span>{% endfor %}
-    </fieldset>
-    <div class="mc-fixed-block"
-         {% if (form.mc_mode.data or 'random') != 'fixed' %}hidden{% endif %}>
-      <p class="muted">Give three wrong options. They'll always appear alongside the correct answer in a random order.</p>
-      <p>
-        {{ form.distractor_1.label }}<br>
-        {{ form.distractor_1(maxlength=500) }}
-        {% for e in form.distractor_1.errors %}<span class="err">{{ e }}</span>{% endfor %}
-      </p>
-      <p>
-        {{ form.distractor_2.label }}<br>
-        {{ form.distractor_2(maxlength=500) }}
-        {% for e in form.distractor_2.errors %}<span class="err">{{ e }}</span>{% endfor %}
-      </p>
-      <p>
-        {{ form.distractor_3.label }}<br>
-        {{ form.distractor_3(maxlength=500) }}
-        {% for e in form.distractor_3.errors %}<span class="err">{{ e }}</span>{% endfor %}
-      </p>
-    </div>
-    <p class="muted">Random mode draws three other answers from this deck. The deck needs at least four cards to study a random-mode card.</p>
-  </div>
-
-  {# --- True / False --- #}
-  <div class="type-block type-tf" data-for-type="tf"
-       {% if form.is_new and form.card_type.data != 'tf' %}hidden{% elif not form.is_new and card.card_type != 'tf' %}hidden{% endif %}>
-    <fieldset>
-      <legend>Correct answer</legend>
-      {% for subfield in form.tf_correct %}
-        <label class="radio-inline">
-          {{ subfield }} {{ subfield.label.text }}
-        </label>
-      {% endfor %}
-      {% for e in form.tf_correct.errors %}<span class="err">{{ e }}</span>{% endfor %}
-    </fieldset>
-  </div>
-
+  <p>
+    {{ form.answer.label }}<br>
+    {{ form.answer(rows=3, maxlength=500) }}
+    {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </p>
   <p>
     {{ form.submit }}
-    {% if card and return_session %}
+    {% if return_session %}
     <a class="btn-secondary" href="{{ url_for('study_results', session_id=return_session.id) }}">Cancel</a>
-    {% elif card %}
-    <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">Cancel</a>
     {% else %}
-    <a class="btn-secondary" href="{{ url_for('home') }}">Cancel</a>
+    <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">Cancel</a>
     {% endif %}
   </p>
 </form>
-
-{% if form.is_new %}
-<script>
-(function () {
-  var form = document.querySelector('form.card-form');
-  if (!form) return;
-  function show(type) {
-    form.querySelectorAll('.type-block').forEach(function (b) {
-      b.hidden = (b.dataset.forType !== type);
-    });
-  }
-  form.querySelectorAll('input[name="card_type"]').forEach(function (r) {
-    r.addEventListener('change', function () { show(r.value); });
-  });
-  var mcFixed = form.querySelector('.mc-fixed-block');
-  form.querySelectorAll('input[name="mc_mode"]').forEach(function (r) {
-    r.addEventListener('change', function () {
-      if (mcFixed) mcFixed.hidden = (r.value !== 'fixed');
-    });
-  });
-})();
-</script>
-{% else %}
-<script>
-(function () {
-  var form = document.querySelector('form.card-form');
-  if (!form) return;
-  var mcFixed = form.querySelector('.mc-fixed-block');
-  form.querySelectorAll('input[name="mc_mode"]').forEach(function (r) {
-    r.addEventListener('change', function () {
-      if (mcFixed) mcFixed.hidden = (r.value !== 'fixed');
-    });
-  });
-})();
-</script>
-{% endif %}
 {% endblock %}

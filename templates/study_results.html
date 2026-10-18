@@ -28,64 +28,36 @@
     <li class="result-row {{ 'right' if a.is_correct else 'wrong' }}">
       <div class="result-q"><span class="result-label">Q</span> {{ a.card_snapshot_q }}</div>
 
-      {% if a.card_type == "written" %}
-        {% if a.is_correct %}
-          <div class="result-a">
-            <span class="result-label">✓</span> <span>{{ a.student_answer }}</span>
-          </div>
-        {% else %}
-          <div class="result-a">
-            <span class="result-label">You</span>
-            <span class="diff-line">
-              {% if a.student_answer %}
-                {% for kind, ch in row.student_side -%}
-                  <span class="diff-{{ kind }}">{{ ch }}</span>
-                {%- endfor %}
-              {% else %}
-                <em class="muted">(blank)</em>
-              {% endif %}
-            </span>
-          </div>
-          <div class="result-a">
-            <span class="result-label">Correct</span>
-            <span class="diff-line">
-              {% for kind, ch in row.correct_side -%}
+      {% if a.is_correct %}
+        <div class="result-a">
+          <span class="result-label">✓</span> <span>{{ a.student_answer }}</span>
+        </div>
+      {% else %}
+        <div class="result-a">
+          <span class="result-label">You</span>
+          <span class="diff-line">
+            {% if a.student_answer %}
+              {% for kind, ch in row.student_side -%}
                 <span class="diff-{{ kind }}">{{ ch }}</span>
               {%- endfor %}
-            </span>
-          </div>
-        {% endif %}
-
-      {% else %}
-        {# MC / TF: show each option, mark student's pick + correct #}
-        <div class="result-options">
-          {% for opt in (row.options or []) %}
-            {% set is_correct = (opt == a.card_snapshot_a) %}
-            {% set was_picked = (a.student_answer is not none and opt == a.student_answer) %}
-            <div class="result-option
-                        {% if is_correct %} is-correct{% endif %}
-                        {% if was_picked %} was-picked{% endif %}">
-              <span class="result-option-marker">
-                {% if is_correct %}✓{% elif was_picked %}✗{% else %}·{% endif %}
-              </span>
-              <span class="result-option-text">{{ opt }}</span>
-              {% if was_picked and not is_correct %}
-                <span class="muted">(your pick)</span>
-              {% endif %}
-            </div>
-          {% endfor %}
-          {% if a.student_answer is none %}
-          <div class="result-option result-option-skipped">
-            <em class="muted">(skipped)</em>
-          </div>
-          {% endif %}
+            {% else %}
+              <em class="muted">(blank)</em>
+            {% endif %}
+          </span>
         </div>
-      {% endif %}
-
-      {% if not a.is_correct and a.card_id %}
-      <div class="result-actions">
-        <a class="btn-secondary" href="{{ url_for('card_edit', card_id=a.card_id, return_to=session.id) }}">Edit this card</a>
-      </div>
+        <div class="result-a">
+          <span class="result-label">Correct</span>
+          <span class="diff-line">
+            {% for kind, ch in row.correct_side -%}
+              <span class="diff-{{ kind }}">{{ ch }}</span>
+            {%- endfor %}
+          </span>
+        </div>
+        {% if a.card_id %}
+        <div class="result-actions">
+          <a class="btn-secondary" href="{{ url_for('card_edit', card_id=a.card_id, return_to=session.id) }}">Edit this card</a>
+        </div>
+        {% endif %}
       {% endif %}
     </li>
   {% endfor %}

@@ -148,20 +148,6 @@ CARD_SIDE_MAX = 500
 DECK_NAME_MAX = 120
 FOLDER_NAME_MAX = 64
 
-CARD_TYPE_WRITTEN = "written"
-CARD_TYPE_MC = "mc"
-CARD_TYPE_TF = "tf"
-CARD_TYPES = (CARD_TYPE_WRITTEN, CARD_TYPE_MC, CARD_TYPE_TF)
-CARD_TYPE_LABELS = {
-    CARD_TYPE_WRITTEN: "Written",
-    CARD_TYPE_MC: "Multiple choice",
-    CARD_TYPE_TF: "True / False",
-}
-MC_OPTIONS = 4
-MC_MIN_DECK_CARDS = MC_OPTIONS  # need correct + 3 distractors from siblings
-TF_TRUE = "true"
-TF_FALSE = "false"
-
 DECK_PALETTE = [
     "#ffd6d6",  # peach
     "#ffe8c2",  # apricot
@@ -236,39 +222,11 @@ class Card(db.Model):
     )
     question = db.Column(db.String(CARD_SIDE_MAX), nullable=False)
     answer = db.Column(db.String(CARD_SIDE_MAX), nullable=False)
-    card_type = db.Column(db.String(16), nullable=False, default=CARD_TYPE_WRITTEN)
-    # Only meaningful for card_type == "mc". NULL on written/tf; True on MC
-    # cards that pick 3 distractors at study-time from siblings in the
-    # deck, False on MC cards with their own CardDistractor rows.
-    mc_random = db.Column(db.Boolean, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(
         db.DateTime,
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
-    )
-
-    distractors = db.relationship(
-        "CardDistractor",
-        backref="card",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-        order_by="CardDistractor.position",
-    )
-
-
-class CardDistractor(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    card_id = db.Column(
-        db.Integer, db.ForeignKey("card.id", ondelete="CASCADE"),
-        nullable=False, index=True,
-    )
-    text = db.Column(db.String(CARD_SIDE_MAX), nullable=False)
-    position = db.Column(db.SmallInteger, nullable=False)
-    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-
-    __table_args__ = (
-        db.UniqueConstraint("card_id", "position", name="uq_card_distractor_card_pos"),
     )
 
 
@@ -316,13 +274,6 @@ class StudyAttempt(db.Model):
     is_correct = db.Column(db.Boolean, nullable=True)
     position = db.Column(db.Integer, nullable=False)
     attempted_at = db.Column(db.DateTime, nullable=True)
-    # Card type at the time of this attempt — immutable snapshot so the
-    # results page renders old sessions correctly even if the card was
-    # deleted or (in future) its options drifted.
-    card_type = db.Column(db.String(16), nullable=False, default=CARD_TYPE_WRITTEN)
-    # JSON-encoded ordered list of option strings shown to the student
-    # (MC: 4 options; TF: ["true","false"]). Null for written attempts.
-    options_json = db.Column(db.Text, nullable=True)
 
 
 @login_manager.user_loader
@@ -496,117 +447,18 @@ def _owned_card_or_404(card_id):
     return card
 
 
-def _trim(v):
-    return v.strip() if isinstance(v, str) else v
-
-
 class CardForm(FlaskForm):
-    """One form for all three card types.
-
-    ``card_type`` is only honoured on create (``is_new=True``); on edit
-    it's read from the stored card and the posted value is ignored
-    (immutability guarantee).
-    """
-
-    card_type = RadioField(
-        "Type",
-        choices=[(t, CARD_TYPE_LABELS[t]) for t in CARD_TYPES],
-        default=CARD_TYPE_WRITTEN,
-        validators=[DataRequired()],
-    )
     question = TextAreaField(
         "Question",
         validators=[DataRequired(), Length(min=1, max=CARD_SIDE_MAX)],
-        filters=[_trim],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
     )
     answer = TextAreaField(
-        "Answer (written)",
-        validators=[Optional(), Length(max=CARD_SIDE_MAX)],
-        filters=[_trim],
-    )
-    # MC-only
-    mc_mode = RadioField(
-        "Distractors",
-        choices=[("random", "Random from the rest of the deck"), ("fixed", "Choose my own")],
-        default="random",
-        validators=[Optional()],
-    )
-    distractor_1 = StringField("Wrong option 1", validators=[Optional(), Length(max=CARD_SIDE_MAX)], filters=[_trim])
-    distractor_2 = StringField("Wrong option 2", validators=[Optional(), Length(max=CARD_SIDE_MAX)], filters=[_trim])
-    distractor_3 = StringField("Wrong option 3", validators=[Optional(), Length(max=CARD_SIDE_MAX)], filters=[_trim])
-    # TF-only
-    tf_correct = RadioField(
-        "Correct answer",
-        choices=[(TF_TRUE, "True"), (TF_FALSE, "False")],
-        default=TF_TRUE,
-        validators=[Optional()],
+        "Answer",
+        validators=[DataRequired(), Length(min=1, max=CARD_SIDE_MAX)],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
     )
     submit = SubmitField("Save card")
-
-    def __init__(self, *args, is_new=True, locked_type=None, **kwargs):
-        """``is_new`` — show the type selector on create, hide on edit.
-        ``locked_type`` — override the type for validation on edit, so
-        the posted ``card_type`` can't flip an existing card to a
-        different shape."""
-        super().__init__(*args, **kwargs)
-        self.is_new = is_new
-        self.locked_type = locked_type
-
-    @property
-    def effective_type(self):
-        if self.locked_type is not None:
-            return self.locked_type
-        return self.card_type.data
-
-    def validate(self, extra_validators=None):
-        ok = super().validate(extra_validators=extra_validators)
-        t = self.effective_type
-        if t not in CARD_TYPES:
-            self.card_type.errors = list(self.card_type.errors) + ["Unknown card type."]
-            return False
-        if t == CARD_TYPE_WRITTEN:
-            if not (self.answer.data or "").strip():
-                self.answer.errors = list(self.answer.errors) + ["This field is required."]
-                ok = False
-        elif t == CARD_TYPE_MC:
-            if not (self.answer.data or "").strip():
-                self.answer.errors = list(self.answer.errors) + ["The correct answer is required."]
-                ok = False
-            if self.mc_mode.data not in ("random", "fixed"):
-                self.mc_mode.errors = list(self.mc_mode.errors) + ["Pick random or fixed."]
-                ok = False
-            if self.mc_mode.data == "fixed":
-                vals = [
-                    (self.distractor_1.data or "").strip(),
-                    (self.distractor_2.data or "").strip(),
-                    (self.distractor_3.data or "").strip(),
-                ]
-                for i, v in enumerate(vals, start=1):
-                    if not v:
-                        getattr(self, f"distractor_{i}").errors = (
-                            list(getattr(self, f"distractor_{i}").errors)
-                            + ["Required for fixed distractors."]
-                        )
-                        ok = False
-                correct = (self.answer.data or "").strip()
-                if correct and any(v == correct for v in vals if v):
-                    self.answer.errors = list(self.answer.errors) + [
-                        "A distractor duplicates the correct answer."
-                    ]
-                    ok = False
-                non_empty = [v for v in vals if v]
-                if len(set(non_empty)) != len(non_empty):
-                    self.distractor_1.errors = list(self.distractor_1.errors) + [
-                        "Distractors must all be different."
-                    ]
-                    ok = False
-        elif t == CARD_TYPE_TF:
-            if self.tf_correct.data not in (TF_TRUE, TF_FALSE):
-                self.tf_correct.errors = list(self.tf_correct.errors) + [
-                    "Pick true or false."
-                ]
-                ok = False
-        return ok
 
 
 @app.route("/")
@@ -900,53 +752,13 @@ def folder_delete(folder_id):
     )
 
 
-def _apply_type_fields(card, form, deck):
-    """Persist type-specific fields from a validated CardForm onto a Card.
-
-    - For MC-random, blows away any stored distractors (per Mike's rule:
-      switching fixed→random forgets the old distractors).
-    - For MC-fixed, replaces the distractor rows wholesale.
-    - For TF, forces the answer to literal "true"/"false".
-    - For written, leaves answer as whatever the user wrote.
-
-    Validation that depends on live deck state (MC-random pool size,
-    MC-fixed distractor-vs-sibling collisions) is applied here because
-    the form can't see the deck.
-    """
-    t = card.card_type
-    if t == CARD_TYPE_WRITTEN:
-        card.mc_random = None
-        card.distractors = []
-    elif t == CARD_TYPE_MC:
-        if form.mc_mode.data == "random":
-            card.mc_random = True
-            card.distractors = []
-        else:
-            card.mc_random = False
-            card.distractors = [
-                CardDistractor(text=form.distractor_1.data.strip(), position=0),
-                CardDistractor(text=form.distractor_2.data.strip(), position=1),
-                CardDistractor(text=form.distractor_3.data.strip(), position=2),
-            ]
-    elif t == CARD_TYPE_TF:
-        card.mc_random = None
-        card.distractors = []
-        card.answer = TF_TRUE if form.tf_correct.data == TF_TRUE else TF_FALSE
-
-
 @app.route("/decks/<int:deck_id>/cards", methods=["GET", "POST"])
 @login_required
 def deck_cards(deck_id):
     deck = _owned_deck_or_404(deck_id)
-    form = CardForm(is_new=True)
+    form = CardForm()
     if form.validate_on_submit():
-        card = Card(
-            deck_id=deck.id,
-            question=form.question.data,
-            answer=(form.answer.data or "").strip(),
-            card_type=form.card_type.data,
-        )
-        _apply_type_fields(card, form, deck)
+        card = Card(deck_id=deck.id, question=form.question.data, answer=form.answer.data)
         db.session.add(card)
         db.session.commit()
         flash("Card added.", "info")
@@ -973,17 +785,7 @@ def deck_cards(deck_id):
 @login_required
 def card_edit(card_id):
     card = _owned_card_or_404(card_id)
-    form = CardForm(obj=card, is_new=False, locked_type=card.card_type)
-    if request.method == "GET":
-        # Pre-fill the type-specific controls from the stored card so the
-        # edit screen reflects reality.
-        form.card_type.data = card.card_type
-        if card.card_type == CARD_TYPE_MC:
-            form.mc_mode.data = "fixed" if card.mc_random is False else "random"
-            for i, d in enumerate(card.distractors[:3], start=1):
-                getattr(form, f"distractor_{i}").data = d.text
-        elif card.card_type == CARD_TYPE_TF:
-            form.tf_correct.data = card.answer if card.answer in (TF_TRUE, TF_FALSE) else TF_TRUE
+    form = CardForm(obj=card)
 
     # Optional round-trip: if the caller passed ?return_to=<session_id> and
     # that session belongs to the current user, save-and-return to its results
@@ -997,9 +799,7 @@ def card_edit(card_id):
 
     if form.validate_on_submit():
         card.question = form.question.data
-        if card.card_type == CARD_TYPE_WRITTEN or card.card_type == CARD_TYPE_MC:
-            card.answer = (form.answer.data or "").strip()
-        _apply_type_fields(card, form, card.deck)
+        card.answer = form.answer.data
         db.session.commit()
         flash("Card updated.", "info")
         if return_session is not None:
@@ -1097,99 +897,6 @@ def _owned_session_or_404(session_id):
     return s
 
 
-def _materialise_options(card, deck_cards):
-    """Compute the ordered option list to show the student for one card.
-
-    For MC the correct answer plus 3 distractors are picked and the
-    order shuffled. For TF it's always ``[true, false]``. Returns the
-    ordered list (or None for written).
-
-    Raises ValueError if an MC-random card can't form 4 options from
-    its siblings (duplicates after de-dupe, pool too small, etc.) —
-    callers surface this as a user-facing error before any session is
-    created.
-    """
-    if card.card_type == CARD_TYPE_WRITTEN:
-        return None
-    if card.card_type == CARD_TYPE_TF:
-        return [TF_TRUE, TF_FALSE]
-    # MC
-    correct = card.answer
-    if card.mc_random:
-        pool = [
-            c.answer for c in deck_cards
-            if c.id != card.id and c.answer != correct and c.answer
-        ]
-        # De-dupe case-sensitively while preserving randomness.
-        seen = set()
-        unique = []
-        for v in pool:
-            if v not in seen:
-                seen.add(v)
-                unique.append(v)
-        if len(unique) < MC_OPTIONS - 1:
-            raise ValueError(
-                f"Card “{card.question[:40]}…” needs {MC_OPTIONS - 1} unique "
-                f"other answers in this deck for random mode; only {len(unique)} available."
-            )
-        distractors = random.sample(unique, MC_OPTIONS - 1)
-    else:
-        distractors = [d.text for d in card.distractors]
-        if len(distractors) < MC_OPTIONS - 1:
-            raise ValueError(
-                f"Card “{card.question[:40]}…” is missing fixed distractors."
-            )
-    options = [correct] + distractors[: MC_OPTIONS - 1]
-    random.shuffle(options)
-    return options
-
-
-def _create_session_with_attempts(user_id, deck, cards, n, shuffled, restart_of=None):
-    """Shared code path for study_config and study_restart.
-
-    Materialises exactly ``n`` attempts with per-card options. Raises
-    ValueError if any card can't be set up (caller flashes + redirects).
-    Returns the created StudySession.
-    """
-    chosen = list(cards)
-    if shuffled:
-        random.shuffle(chosen)
-    chosen = chosen[:n]
-
-    # Pre-compute options for all chosen cards so we fail cleanly before
-    # inserting any session rows.
-    options_by_card = {}
-    for c in chosen:
-        options_by_card[c.id] = _materialise_options(c, cards)
-
-    s = StudySession(
-        user_id=user_id, deck_id=deck.id,
-        n_cards=n, shuffled=shuffled,
-    )
-    db.session.add(s)
-    db.session.flush()
-    for i, c in enumerate(chosen):
-        opts = options_by_card[c.id]
-        db.session.add(StudyAttempt(
-            session_id=s.id,
-            card_id=c.id,
-            card_snapshot_q=c.question,
-            card_snapshot_a=c.answer,
-            position=i,
-            card_type=c.card_type,
-            options_json=json.dumps(opts) if opts is not None else None,
-        ))
-    db.session.commit()
-    log_fields = dict(
-        user_id=user_id, session_id=s.id,
-        deck_id=deck.id, n_cards=n, shuffled=shuffled,
-    )
-    if restart_of is not None:
-        log_fields["restart_of"] = restart_of
-    _log_event("study_session_start", **log_fields)
-    return s
-
-
 @app.route("/decks/<int:deck_id>/study", methods=["GET", "POST"])
 @login_required
 def study_config(deck_id):
@@ -1215,15 +922,34 @@ def study_config(deck_id):
         # Clamp requested count silently to what's actually available.
         n = min(max(1, form.n_cards.data), total)
         shuffled = form.order.data == "shuffle"
-        try:
-            s = _create_session_with_attempts(
-                current_user.id, deck, cards, n, shuffled,
-            )
-        except ValueError as e:
-            flash(str(e), "error")
-            return render_template(
-                "study_config.html", deck=deck, total=total, form=form,
-            )
+
+        chosen = list(cards)
+        if shuffled:
+            random.shuffle(chosen)
+        chosen = chosen[:n]
+
+        s = StudySession(
+            user_id=current_user.id,
+            deck_id=deck.id,
+            n_cards=n,
+            shuffled=shuffled,
+        )
+        db.session.add(s)
+        db.session.flush()
+        for i, c in enumerate(chosen):
+            db.session.add(StudyAttempt(
+                session_id=s.id,
+                card_id=c.id,
+                card_snapshot_q=c.question,
+                card_snapshot_a=c.answer,
+                position=i,
+            ))
+        db.session.commit()
+        _log_event(
+            "study_session_start",
+            user_id=current_user.id, session_id=s.id,
+            deck_id=deck.id, n_cards=n, shuffled=shuffled,
+        )
         return redirect(url_for("study_session", session_id=s.id))
 
     return render_template(
@@ -1251,15 +977,9 @@ def study_session(session_id):
         # Shouldn't happen — finalize defensively and redirect to results.
         _finalize_session(s)
         return redirect(url_for("study_results", session_id=s.id))
-    options = None
-    if attempt.options_json:
-        try:
-            options = json.loads(attempt.options_json)
-        except (TypeError, ValueError):
-            options = None
     return render_template(
         "study_session.html",
-        session=s, attempt=attempt, options=options,
+        session=s, attempt=attempt,
         position=attempt.position + 1, total=s.n_cards,
     )
 
@@ -1281,35 +1001,13 @@ def study_submit(session_id):
         # Double-submit — ignore silently, go to whatever's next.
         return redirect(url_for("study_session", session_id=s.id))
 
-    skipped = request.form.get("skip") == "1"
-    raw = "" if skipped else (request.form.get("answer", "") or "")
+    raw = request.form.get("answer", "") or ""
     # Trim to schema cap so a paste-bomb can't blow up the insert.
     if len(raw) > CARD_SIDE_MAX:
         raw = raw[:CARD_SIDE_MAX]
 
-    if skipped:
-        attempt.student_answer = None
-        attempt.is_correct = False
-    elif attempt.card_type == CARD_TYPE_WRITTEN:
-        attempt.student_answer = raw
-        attempt.is_correct = answers_match(raw, attempt.card_snapshot_a)
-    else:
-        # MC / TF: verbatim match against the correct snapshot, and the
-        # submitted value must be one of the options shown.
-        allowed = set()
-        if attempt.options_json:
-            try:
-                allowed = set(json.loads(attempt.options_json))
-            except (TypeError, ValueError):
-                allowed = set()
-        if raw not in allowed:
-            # Tampered form or stale page — treat as a skip rather than
-            # 400ing, so a confused student never loses the session.
-            attempt.student_answer = None
-            attempt.is_correct = False
-        else:
-            attempt.student_answer = raw
-            attempt.is_correct = (raw == attempt.card_snapshot_a)
+    attempt.student_answer = raw
+    attempt.is_correct = answers_match(raw, attempt.card_snapshot_a)
     attempt.attempted_at = datetime.now(timezone.utc)
     db.session.commit()
 
@@ -1353,21 +1051,14 @@ def study_results(session_id):
     rows = []
     for a in attempts:
         student_side, correct_side = ([], [])
-        options = None
-        if a.card_type == CARD_TYPE_WRITTEN and not a.is_correct:
+        if not a.is_correct:
             student_side, correct_side = char_diff_ops(
                 a.student_answer or "", a.card_snapshot_a
             )
-        if a.options_json:
-            try:
-                options = json.loads(a.options_json)
-            except (TypeError, ValueError):
-                options = None
         rows.append({
             "attempt": a,
             "student_side": student_side,
             "correct_side": correct_side,
-            "options": options,
         })
     return render_template(
         "study_results.html",
@@ -1396,13 +1087,34 @@ def study_restart(session_id):
         return redirect(url_for("deck_cards", deck_id=deck.id))
 
     n = min(old.n_cards, len(cards))
-    try:
-        s = _create_session_with_attempts(
-            current_user.id, deck, cards, n, old.shuffled, restart_of=old.id,
-        )
-    except ValueError as e:
-        flash(str(e), "error")
-        return redirect(url_for("study_results", session_id=old.id))
+    chosen = list(cards)
+    if old.shuffled:
+        random.shuffle(chosen)
+    chosen = chosen[:n]
+
+    s = StudySession(
+        user_id=current_user.id,
+        deck_id=deck.id,
+        n_cards=n,
+        shuffled=old.shuffled,
+    )
+    db.session.add(s)
+    db.session.flush()
+    for i, c in enumerate(chosen):
+        db.session.add(StudyAttempt(
+            session_id=s.id,
+            card_id=c.id,
+            card_snapshot_q=c.question,
+            card_snapshot_a=c.answer,
+            position=i,
+        ))
+    db.session.commit()
+    _log_event(
+        "study_session_start",
+        user_id=current_user.id, session_id=s.id,
+        deck_id=deck.id, n_cards=n, shuffled=old.shuffled,
+        restart_of=old.id,
+    )
     return redirect(url_for("study_session", session_id=s.id))
 
 
