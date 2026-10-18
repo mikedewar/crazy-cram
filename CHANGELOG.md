@@ -1,11 +1,5 @@
 # Changelog
 
-## v1.2.1 — 2026-10-18
-
-**Fix: MC cards couldn't be saved.** The card form rendered `form.answer` inside both the written and MC type-blocks. The non-chosen block was marked `hidden`, but HTML `hidden` doesn't suppress form submission, so the browser sent two `answer=` keys. WTForms' `StringField` takes the first value — the empty one from the hidden written block — so saving an MC card always failed with "The correct answer is required." Lifted the single `form.answer` field above the type-blocks in both `card_form.html` and `deck_cards.html`; the surrounding label text and visibility are toggled by JS based on the chosen type. Added `tests/test_card_form_duplicate_answer_bug.py` which drives the real rendered HTML (parses out field names, submits the browser-shaped payload) and would have caught the original bug.
-
-- 241 tests green (was 240; +1 regression test).
-
 ## v1.2.0 — 2026-10-18
 
 **Card types.** Multiple-choice and true/false alongside written cards.

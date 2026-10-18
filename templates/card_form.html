@@ -7,8 +7,7 @@
 {% elif card %}
 <p class="muted">Deck: <a href="{{ url_for('deck_cards', deck_id=card.deck_id) }}">{{ card.deck.name }}</a></p>
 {% endif %}
-{% set initial_type = (card.card_type if card else (form.card_type.data or 'written')) %}
-<form method="post" novalidate action="{% if card and return_session %}{{ url_for('card_edit', card_id=card.id, return_to=return_session.id) }}{% elif card %}{{ url_for('card_edit', card_id=card.id) }}{% endif %}" class="card-form" data-initial-type="{{ initial_type }}">
+<form method="post" novalidate action="{% if card and return_session %}{{ url_for('card_edit', card_id=card.id, return_to=return_session.id) }}{% elif card %}{{ url_for('card_edit', card_id=card.id) }}{% endif %}" class="card-form">
   {{ form.hidden_tag() }}
 
   {% if form.is_new %}
@@ -31,21 +30,24 @@
     {% for e in form.question.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </p>
 
-  {# Single `answer` field, shared between written + MC.
-     Label text and visibility are toggled by JS based on the chosen type.
-     TF doesn't use `form.answer` — the TF block hides this wrapper. #}
-  <p class="answer-block"
-     {% if initial_type == 'tf' %}hidden{% endif %}>
-    <label for="answer" class="answer-label-written" {% if initial_type != 'written' %}hidden{% endif %}>Answer</label>
-    <label for="answer" class="answer-label-mc" {% if initial_type != 'mc' %}hidden{% endif %}>Correct answer</label>
-    <br>
-    {{ form.answer(rows=3, maxlength=500) }}
-    {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
-  </p>
+  {# --- Written-only --- #}
+  <div class="type-block type-written" data-for-type="written"
+       {% if form.is_new and form.card_type.data != 'written' %}hidden{% elif not form.is_new and card.card_type != 'written' %}hidden{% endif %}>
+    <p>
+      <label for="answer">Answer</label><br>
+      {{ form.answer(rows=3, maxlength=500) }}
+      {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
+  </div>
 
-  {# --- Multiple choice (distractors only; the correct answer lives above) --- #}
+  {# --- Multiple choice --- #}
   <div class="type-block type-mc" data-for-type="mc"
-       {% if initial_type != 'mc' %}hidden{% endif %}>
+       {% if form.is_new and form.card_type.data != 'mc' %}hidden{% elif not form.is_new and card.card_type != 'mc' %}hidden{% endif %}>
+    <p>
+      <label for="answer">Correct answer</label><br>
+      {{ form.answer(rows=2, maxlength=500) }}
+      {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    </p>
     <fieldset>
       <legend>Distractors</legend>
       {% for subfield in form.mc_mode %}
@@ -79,7 +81,7 @@
 
   {# --- True / False --- #}
   <div class="type-block type-tf" data-for-type="tf"
-       {% if initial_type != 'tf' %}hidden{% endif %}>
+       {% if form.is_new and form.card_type.data != 'tf' %}hidden{% elif not form.is_new and card.card_type != 'tf' %}hidden{% endif %}>
     <fieldset>
       <legend>Correct answer</legend>
       {% for subfield in form.tf_correct %}
@@ -108,16 +110,10 @@
 (function () {
   var form = document.querySelector('form.card-form');
   if (!form) return;
-  var answerBlock = form.querySelector('.answer-block');
-  var labelWritten = form.querySelector('.answer-label-written');
-  var labelMc = form.querySelector('.answer-label-mc');
   function show(type) {
     form.querySelectorAll('.type-block').forEach(function (b) {
       b.hidden = (b.dataset.forType !== type);
     });
-    if (answerBlock) answerBlock.hidden = (type === 'tf');
-    if (labelWritten) labelWritten.hidden = (type !== 'written');
-    if (labelMc) labelMc.hidden = (type !== 'mc');
   }
   form.querySelectorAll('input[name="card_type"]').forEach(function (r) {
     r.addEventListener('change', function () { show(r.value); });
