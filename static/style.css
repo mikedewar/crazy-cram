@@ -250,6 +250,8 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   display: inline-flex; align-items: center; gap: .4rem;
   margin-right: 1rem; cursor: pointer;
 }
+.radio-group label.radio-disabled { cursor: not-allowed; opacity: .55; }
+.radio-group label.radio-disabled .muted { font-size: .85rem; }
 
 .progress {
   position: relative;

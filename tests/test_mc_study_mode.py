@@ -1,8 +1,9 @@
 """MC-study-mode tests.
 
-Mode is picked at session start (?mode=mc). Options are 1 correct + 3
-distractors drawn from other cards in the deck. Scoring = exact match on
-chosen option string. Needs >=4 cards in the deck.
+Mode is picked on the /decks/N/study page (radio in the config form). MC
+needs >=4 cards in the deck; when the deck is smaller the MC radio renders
+disabled. Options are 1 correct + 3 distractors drawn from other cards in
+the deck. Scoring = exact match on the chosen option string.
 """
 import re
 
@@ -30,9 +31,9 @@ def _mk_deck_with_cards(app, user_id, n, name="French"):
 def _start_mc_session(client, deck_id, n_cards):
     """Start an MC session via the config form and return redirect Location."""
     r = client.post(
-        f"/decks/{deck_id}/study?mode=mc",
-        data={"n_cards": n_cards, "order": "created", "submit": "Start",
-              "mode": "mc"},
+        f"/decks/{deck_id}/study",
+        data={"mode": "mc", "n_cards": n_cards, "order": "created",
+              "submit": "Start"},
     )
     assert r.status_code == 302, r.data
     return r.headers["Location"]
@@ -40,7 +41,8 @@ def _start_mc_session(client, deck_id, n_cards):
 
 # ---- Deck tiles -----------------------------------------------------
 
-def test_home_shows_both_study_buttons_when_deck_has_four_cards(client, invite, app):
+def test_home_shows_single_study_button(client, invite, app):
+    """Deck tiles should show one 'Study' button regardless of card count."""
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
     d = _mk_deck_with_cards(app, alice.id, 4)
@@ -49,11 +51,12 @@ def test_home_shows_both_study_buttons_when_deck_has_four_cards(client, invite, 
     r = client.get("/home")
     assert r.status_code == 200
     body = r.data.decode()
-    assert "Written study" in body
-    assert "Multiple choice" in body
+    assert ">Study<" in body
+    assert "Written study" not in body
+    assert "Multiple choice" not in body
 
 
-def test_home_hides_mc_button_when_deck_has_three_cards(client, invite, app):
+def test_home_single_study_button_small_deck(client, invite, app):
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
     d = _mk_deck_with_cards(app, alice.id, 3)
@@ -61,48 +64,63 @@ def test_home_hides_mc_button_when_deck_has_three_cards(client, invite, app):
 
     r = client.get("/home")
     body = r.data.decode()
-    assert "Written study" in body
+    assert ">Study<" in body
     assert "Multiple choice" not in body
 
 
-# ---- Config page honours mode --------------------------------------
+# ---- Config page offers mode radio --------------------------------------
 
-def test_config_page_mc_header_when_mode_mc(client, invite, app):
+def _mc_radio_tag(body):
+    """Return the <input> HTML for the mc mode radio, or None."""
+    m = re.search(r'<input[^>]*value="mc"[^>]*>', body)
+    return m.group(0) if m else None
+
+
+def test_config_page_renders_mode_radio_when_deck_has_four_cards(client, invite, app):
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
     d = _mk_deck_with_cards(app, alice.id, 5)
 
-    r = client.get(f"/decks/{d.id}/study?mode=mc")
+    r = client.get(f"/decks/{d.id}/study")
     assert r.status_code == 200
-    assert b"Multiple-choice study" in r.data
-    assert b'name="mode" value="mc"' in r.data
+    body = r.data.decode()
+    assert re.search(r'<input[^>]*value="written"[^>]*>', body)
+    mc_tag = _mc_radio_tag(body)
+    assert mc_tag is not None, "mc radio input should be rendered"
+    assert "disabled" not in mc_tag, f"mc radio should be enabled: {mc_tag}"
 
 
-def test_config_mc_redirects_when_too_few_cards(client, invite, app):
+def test_config_page_disables_mc_radio_when_deck_too_small(client, invite, app):
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
     d = _mk_deck_with_cards(app, alice.id, 3)
 
-    r = client.get(f"/decks/{d.id}/study?mode=mc", follow_redirects=False)
-    assert r.status_code == 302
-    assert "/study" in r.headers["Location"]
-    # Follow redirect — should land on written-mode config page.
-    r2 = client.get(r.headers["Location"])
-    assert b"Written study" in r2.data
-    assert b"at least 4 cards" in r2.data
+    r = client.get(f"/decks/{d.id}/study")
+    assert r.status_code == 200
+    body = r.data.decode()
+    assert re.search(r'<input[^>]*value="written"[^>]*>', body)
+    mc_tag = _mc_radio_tag(body)
+    assert mc_tag is not None, "mc radio input should still render (disabled)"
+    assert "disabled" in mc_tag, f"mc radio should be disabled: {mc_tag}"
+    assert "needs 4+ cards" in body
 
 
-def test_config_bogus_mode_falls_back_to_written(client, invite, app):
+def test_config_post_mc_on_small_deck_redirects(client, invite, app):
+    """Form submission with mode=mc on a <4-card deck must not start a session."""
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
-    d = _mk_deck_with_cards(app, alice.id, 5)
+    d = _mk_deck_with_cards(app, alice.id, 3)
 
-    r = client.get(f"/decks/{d.id}/study?mode=banana")
-    assert r.status_code == 200
-    assert b"Written study" in r.data
+    r = client.post(f"/decks/{d.id}/study",
+                    data={"mode": "mc", "n_cards": 3, "order": "created",
+                          "submit": "Start"})
+    assert r.status_code == 302
+    assert f"/decks/{d.id}/study" in r.headers["Location"]
+    # No session was created.
+    assert app.StudySession.query.count() == 0
 
 
-# ---- Starting an MC session ---------------------------------------
+# ---- Starting a session via the form ---------------------------------
 
 def test_start_mc_session_persists_mode(client, invite, app):
     _register(client, invite, "alice")
@@ -123,7 +141,8 @@ def test_written_session_default_mode(client, invite, app):
     d = _mk_deck_with_cards(app, alice.id, 5)
 
     r = client.post(f"/decks/{d.id}/study",
-                    data={"n_cards": 5, "order": "created", "submit": "Start"})
+                    data={"mode": "written", "n_cards": 5, "order": "created",
+                          "submit": "Start"})
     assert r.status_code == 302
     sess_id = int(re.search(r"/sessions/(\d+)", r.headers["Location"]).group(1))
     s = app.db.session.get(app.StudySession, sess_id)

@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.3.1 — 2026-10-18
+
+**Mode picker moved onto the study-config page.** Deck tiles go back to one
+"Study" button; the written / multiple-choice choice lives inside
+`/decks/<id>/study` as a radio in the config form.
+
+- `StudyConfigForm` gains a `mode` RadioField (`written` default, `mc`
+  disabled when the deck has fewer than 4 cards).
+- `study_config` route reads `form.mode.data` instead of `?mode=mc`; a POST
+  with `mode=mc` on a sub-4-card deck is rejected with a flash and redirect
+  (no session created).
+- `templates/home.html` and `templates/folders/detail.html` collapse their
+  two-button block to one "Study" button.
+- `templates/study_config.html` loses its header-fork and `<input
+  type="hidden" name="mode">` — mode is just another form field now.
+- Schema unchanged from v1.3.0 — no migration needed on deploy.
+- 231 tests green (same count: deck-tile tests rewritten, config-redirect
+  test replaced with radio-visibility + POST-rejection coverage).
+
 ## v1.3.0 — 2026-10-18
 
 **Multiple-choice as a study mode, not a card type.** Decks with ≥4 cards get a

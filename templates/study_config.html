@@ -2,7 +2,7 @@
 {% block title %}Study {{ deck.name }} — Crazy-Cram{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{{ 'Multiple-choice study' if mode == 'mc' else 'Written study' }}: {{ deck.name }}</h1>
+  <h1>Study: {{ deck.name }}</h1>
   <div class="page-head-actions">
     <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
   </div>
@@ -17,7 +17,20 @@
 <p class="muted">This deck has {{ total }} card{{ '' if total == 1 else 's' }}.</p>
 <form method="post" novalidate>
   {{ form.hidden_tag() }}
-  <input type="hidden" name="mode" value="{{ mode }}">
+  <fieldset class="radio-group">
+    <legend>{{ form.mode.label.text }}</legend>
+    {% for sub in form.mode %}
+      {% if sub.data == 'mc' and not mc_available %}
+      <label class="radio radio-disabled">
+        {{ sub(disabled=True) }} {{ sub.label.text }}
+        <span class="muted">(needs {{ mc_min_deck_size }}+ cards)</span>
+      </label>
+      {% else %}
+      <label class="radio">{{ sub }} {{ sub.label.text }}</label>
+      {% endif %}
+    {% endfor %}
+    {% for e in form.mode.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </fieldset>
   <p>
     {{ form.n_cards.label }}<br>
     {{ form.n_cards(type="number", min=1, max=total, autofocus=True) }}

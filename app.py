@@ -916,6 +916,12 @@ def mc_options_for(attempt):
 
 
 class StudyConfigForm(FlaskForm):
+    mode = RadioField(
+        "Study mode",
+        choices=[("written", "Written"), ("mc", "Multiple choice")],
+        default="written",
+        validators=[DataRequired()],
+    )
     n_cards = IntegerField(
         "How many cards?",
         validators=[DataRequired(), NumberRange(min=1)],
@@ -946,22 +952,13 @@ def study_config(deck_id):
         .all()
     )
     total = len(cards)
-
-    mode = request.values.get("mode", "written")
-    if mode not in STUDY_MODES:
-        mode = "written"
-    if mode == "mc" and total < MC_MIN_DECK_SIZE:
-        # Not enough cards to generate 3 distractors — bump to written.
-        flash(
-            f"Multiple choice needs at least {MC_MIN_DECK_SIZE} cards in the deck.",
-            "error",
-        )
-        return redirect(url_for("study_config", deck_id=deck.id))
+    mc_available = total >= MC_MIN_DECK_SIZE
 
     if total == 0:
         # No form / no Start button — the template shows a link to add cards.
         return render_template(
-            "study_config.html", deck=deck, total=0, form=None, mode=mode,
+            "study_config.html", deck=deck, total=0, form=None,
+            mc_available=False, mc_min_deck_size=MC_MIN_DECK_SIZE,
         )
 
     form = StudyConfigForm()
@@ -969,6 +966,16 @@ def study_config(deck_id):
         form.n_cards.data = total
 
     if form.validate_on_submit():
+        mode = form.mode.data if form.mode.data in STUDY_MODES else "written"
+        # Reject MC if deck has shrunk below the minimum between form render
+        # and submit (or if someone POSTs mc on a tiny deck directly).
+        if mode == "mc" and not mc_available:
+            flash(
+                f"Multiple choice needs at least {MC_MIN_DECK_SIZE} cards in the deck.",
+                "error",
+            )
+            return redirect(url_for("study_config", deck_id=deck.id))
+
         # Clamp requested count silently to what's actually available.
         n = min(max(1, form.n_cards.data), total)
         shuffled = form.order.data == "shuffle"
@@ -1004,7 +1011,8 @@ def study_config(deck_id):
         return redirect(url_for("study_session", session_id=s.id))
 
     return render_template(
-        "study_config.html", deck=deck, total=total, form=form, mode=mode,
+        "study_config.html", deck=deck, total=total, form=form,
+        mc_available=mc_available, mc_min_deck_size=MC_MIN_DECK_SIZE,
     )
 
 
