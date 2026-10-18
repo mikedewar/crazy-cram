@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.1.2 — 2026-10-18
+
+**Roll back card types.** v1.2.0 (card types: written / MC / TF) and the
+subsequent v1.2.1 duplicate-answer-field fix are reverted. Multiple-choice
+and true/false didn't earn their complexity. The one MC card that was created
+on live (deck 6, "how much poop?" / "so much poop!") is preserved as a plain
+written card. Historical attempts (1146) retain their `card_id` and
+snapshot columns; the `card_type` and `options_json` columns are dropped
+with migration `0006` on downgrade. No user-visible data was lost — only
+the type classification on one card and the empty `card_distractor` table
+go away.
+
+- Reverted commits: `1fee38e` (card types), `bdc0409` (0006 FK fix),
+  `bcfc191` (MC duplicate-answer form fix).
+- Alembic downgrade `0006_card_types → 0005_deck_color` rehearsed against
+  a byte-identical copy of the live DB: 11 users / 19 decks / 244 cards /
+  70 sessions / 1146 attempts / 0 null card_ids preserved; `card_distractor`
+  and the new columns dropped cleanly.
+- Also re-applied the pre-existing `test_home_has_new_folder_link` test
+  (previously renamed in v1.2.0) so the suite stays green at this commit.
+- 213 tests green.
+
 ## v1.1.0 — 2026-09-26
 
 **Folders.** A one-level organisation layer above decks, plus a "Recently opened" section on the landing page.
