@@ -13,16 +13,25 @@
   <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
   {% if options %}
     <fieldset class="mc-options">
-      <legend>Pick an answer</legend>
+      <legend class="visually-hidden">Pick an answer</legend>
       {% for opt in options %}
         <label class="mc-option">
-          <input type="radio" name="answer" value="{{ opt }}" required
-                 {% if loop.first %}autofocus{% endif %}>
+          <input type="radio" name="answer" value="{{ opt }}">
           <span>{{ opt }}</span>
         </label>
       {% endfor %}
     </fieldset>
-    <p><button type="submit">Submit</button></p>
+    <p><button type="submit" name="skip" value="1" class="btn-skip">Skip</button></p>
+    <script>
+      (function () {
+        var form = document.currentScript.closest('form');
+        form.addEventListener('change', function (e) {
+          if (e.target && e.target.type === 'radio' && e.target.name === 'answer') {
+            form.submit();
+          }
+        });
+      })();
+    </script>
   {% else %}
     <label for="answer">Your answer</label>
     <input type="text" name="answer" id="answer" autocomplete="off"

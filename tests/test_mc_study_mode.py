@@ -41,14 +41,18 @@ def _start_mc_session(client, deck_id, n_cards):
 
 # ---- Deck tiles -----------------------------------------------------
 
-def test_home_shows_single_study_button(client, invite, app):
+def test_folder_tile_shows_single_study_button(client, invite, app):
     """Deck tiles should show one 'Study' button regardless of card count."""
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
+    f = app.Folder(user_id=alice.id, name="Langs")
+    app.db.session.add(f)
+    app.db.session.commit()
     d = _mk_deck_with_cards(app, alice.id, 4)
-    client.get(f"/decks/{d.id}/cards")  # bump last_opened_at so it appears in recent
+    d.folder_id = f.id
+    app.db.session.commit()
 
-    r = client.get("/home")
+    r = client.get(f"/folders/{f.id}")
     assert r.status_code == 200
     body = r.data.decode()
     assert ">Study<" in body
@@ -56,13 +60,17 @@ def test_home_shows_single_study_button(client, invite, app):
     assert "Multiple choice" not in body
 
 
-def test_home_single_study_button_small_deck(client, invite, app):
+def test_folder_tile_single_study_button_small_deck(client, invite, app):
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
+    f = app.Folder(user_id=alice.id, name="Langs")
+    app.db.session.add(f)
+    app.db.session.commit()
     d = _mk_deck_with_cards(app, alice.id, 3)
-    client.get(f"/decks/{d.id}/cards")
+    d.folder_id = f.id
+    app.db.session.commit()
 
-    r = client.get("/home")
+    r = client.get(f"/folders/{f.id}")
     body = r.data.decode()
     assert ">Study<" in body
     assert "Multiple choice" not in body

@@ -11,7 +11,14 @@
 {% if decks %}
 <ul class="deck-grid">
   {% for row in decks %}
-  <li class="deck-tile"{% if row.deck.color %} style="background-color: {{ row.deck.color }}"{% endif %}>
+  {%- set did = row.deck.id -%}
+  {%- set r1 = (did * 37) % 7 - 3 -%}
+  {%- set r2 = (did * 53) % 11 - 10 -%}
+  {%- set dx1 = (did * 17) % 5 - 2 -%}
+  {%- set dy1 = (did * 23) % 4 + 1 -%}
+  {%- set dx2 = (did * 29) % 7 - 5 -%}
+  {%- set dy2 = (did * 31) % 4 + 3 -%}
+  <li class="deck-tile" style="{% if row.deck.color %}--deck-color: {{ row.deck.color }};{% endif %}--r1: {{ r1 }}deg;--r2: {{ r2 }}deg;--dx1: {{ dx1 }}px;--dy1: {{ dy1 }}px;--dx2: {{ dx2 }}px;--dy2: {{ dy2 }}px;">
     <a class="deck-tile-link" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}"
        aria-label="Open cards in {{ row.deck.name }}"></a>
     <div class="deck-tile-name">

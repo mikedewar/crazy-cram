@@ -551,28 +551,12 @@ def home():
     unfiled_count = Deck.query.filter_by(user_id=current_user.id, folder_id=None).count()
     total_decks = Deck.query.filter_by(user_id=current_user.id).count()
 
-    recent_rows = (
-        db.session.query(Deck, Folder, func.count(Card.id))
-        .outerjoin(Folder, Folder.id == Deck.folder_id)
-        .outerjoin(Card, Card.deck_id == Deck.id)
-        .filter(Deck.user_id == current_user.id)
-        .group_by(Deck.id, Folder.id)
-        .order_by(Deck.last_opened_at.desc().nullslast(), Deck.created_at.desc())
-        .limit(5)
-        .all()
-    )
-    recent = [
-        {"deck": d, "folder": f, "card_count": n}
-        for (d, f, n) in recent_rows
-        if d.last_opened_at is not None
-    ]
     return render_template(
         "home.html",
         user=current_user,
         folders=folders,
         unfiled_count=unfiled_count,
         total_decks=total_decks,
-        recent=recent,
     )
 
 

@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.3.2 — 2026-10-19
+
+**Home page slimmed down to folder-first navigation.** The home page is now
+purely a folder index: one "+ New folder" button, the Unfiled tile stays as
+a first-class entry so orphaned decks remain reachable, and the folders list
+is it. Everything deck-level — opening, creating, studying — lives inside a
+folder page.
+
+- `templates/home.html`: single "+ New folder" button in both empty and
+  populated states; icon-btn next to the "Folders" heading removed; the
+  "Recently opened" grid removed entirely (including the WIP stack-of-three
+  jitter in that section). Unfiled tile preserved.
+- `app.py` `home()` view: dropped the `recent_rows` query and template kwarg;
+  `unfiled_count` kept. `last_opened_at` column itself unchanged — the bump
+  behaviour still runs on `GET /decks/<id>/cards` for any future surface
+  that wants it.
+- Deck-tile WIP from v1.3.0-era now folded in: `folders/detail.html` +
+  `deck_cards.html` + `study_session.html` + `static/style.css` — stable
+  per-deck stack-of-three jitter (CSS vars seeded from `deck.id`), MC
+  study-mode radio-dot visually hidden with auto-advance on `change`,
+  dedicated Skip button posts blank, `prefers-color-scheme` dark mode,
+  keyboard-only `:focus-visible` ring.
+- Schema unchanged — no migration.
+- 225 tests green (home-page tests retargeted at folder-detail where deck
+  tiles still render; new guards cover the "no recent", "no new deck", and
+  "Unfiled tile present" invariants).
+
 ## v1.3.1 — 2026-10-18
 
 **Mode picker moved onto the study-config page.** Deck tiles go back to one

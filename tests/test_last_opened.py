@@ -1,7 +1,9 @@
-"""M4 tests — last_opened_at bump + landing 'Recently opened' section.
+"""M4 tests — last_opened_at bump behaviour.
 
 The 'open a deck' event is GET /decks/<id>/cards. POST there is card
-creation and MUST NOT bump last_opened_at.
+creation and MUST NOT bump last_opened_at. The home-page 'Recently
+opened' section was removed in favour of folder-first navigation; the
+column itself survives for any future surface that wants it.
 """
 from datetime import datetime, timedelta
 
@@ -85,85 +87,28 @@ def test_repeated_opens_update_last_opened_at(client, invite, app):
     assert second > first
 
 
-# ---- home() 'Recently opened' section ------------------------------
+# ---- home() surface ------------------------------------------------
 
-def test_home_never_opened_deck_not_in_recent(client, invite, app):
+def test_home_has_no_recently_opened_section(client, invite, app):
+    """The 'Recently opened' section is gone; the home page is folder-first."""
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
-    _mk_deck(app, alice, "NeverOpened")
+    d = _mk_deck(app, alice, "French")
+    client.get(f"/decks/{d.id}/cards")   # bump last_opened_at
     r = client.get("/home")
-    # Deck exists but shouldn't be listed under Recently opened.
-    # It still contributes to Unfiled's count.
     assert b"Recently opened" not in r.data
-    assert b"NeverOpened" not in r.data
-    assert b"1 deck" in r.data  # Unfiled count
+    assert b"French" not in r.data        # deck surfaces only inside its folder
 
 
-def test_home_recent_orders_by_last_opened_desc(client, invite, app):
+def test_home_shows_unfiled_tile_with_count(client, invite, app):
+    """Unfiled is a first-class tile on home so orphaned decks stay reachable."""
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()
-    a = _mk_deck(app, alice, "First")
-    b = _mk_deck(app, alice, "Second")
-    c = _mk_deck(app, alice, "Third")
-
-    # Open in order a, b, c → most-recent first should be c, b, a
-    import time
-    client.get(f"/decks/{a.id}/cards"); time.sleep(1.05)
-    client.get(f"/decks/{b.id}/cards"); time.sleep(1.05)
-    client.get(f"/decks/{c.id}/cards")
-
+    _mk_deck(app, alice, "Loose")
     r = client.get("/home")
-    body = r.data.decode()
-    pos_first = body.find("First")
-    pos_second = body.find("Second")
-    pos_third = body.find("Third")
-    assert pos_third < pos_second < pos_first
-
-
-def test_home_recent_caps_at_5(client, invite, app):
-    _register(client, invite, "alice")
-    alice = app.User.query.filter_by(username="alice").one()
-
-    import time
-    for i in range(7):
-        d = _mk_deck(app, alice, f"D{i}")
-        client.get(f"/decks/{d.id}/cards")
-        time.sleep(1.05)
-
-    r = client.get("/home")
-    body = r.data.decode()
-    # 5 most-recent (D2..D6) present; older two (D0, D1) not.
-    for i in range(2, 7):
-        assert f"D{i}" in body
-    # Strip folder chips from consideration — none named D0/D1 exist.
-    assert "D0" not in body
-    assert "D1" not in body
-
-
-def test_home_recent_shows_folder_chip(client, invite, app):
-    _register(client, invite, "alice")
-    alice = app.User.query.filter_by(username="alice").one()
-    f = app.Folder(user_id=alice.id, name="Languages")
-    app.db.session.add(f)
-    app.db.session.commit()
-    d = _mk_deck(app, alice, "French", folder_id=f.id)
-    client.get(f"/decks/{d.id}/cards")
-    r = client.get("/home")
-    assert b"Recently opened" in r.data
-    assert b"Languages" in r.data
-    assert b"folder-chip" in r.data
-
-
-def test_home_recent_unfiled_deck_shows_unfiled_chip(client, invite, app):
-    _register(client, invite, "alice")
-    alice = app.User.query.filter_by(username="alice").one()
-    d = _mk_deck(app, alice, "Loose")
-    client.get(f"/decks/{d.id}/cards")
-    r = client.get("/home")
-    assert b"Recently opened" in r.data
-    body = r.data.decode()
-    # 'Unfiled' appears at least twice — once in the Folders list, once as the chip.
-    assert body.count("Unfiled") >= 2
+    assert r.status_code == 200
+    assert b"Unfiled" in r.data
+    assert b"1 deck" in r.data
 
 
 def test_home_has_new_folder_link(client, invite):
@@ -175,31 +120,9 @@ def test_home_has_new_folder_link(client, invite):
     assert "/folders/new" in body
 
 
-def test_home_new_folder_form_creates_folder(client, invite, app):
-    """The form on home actually creates a folder when submitted."""
+def test_home_has_no_new_deck_entry_point(client, invite):
+    """Deck creation lives inside a folder; home must not offer it."""
     _register(client, invite, "alice")
-    alice = app.User.query.filter_by(username="alice").one()
-    r = client.post("/folders", data={"name": "Langs", "submit": "Create folder"},
-                    follow_redirects=False)
-    assert r.status_code in (301, 302)
-    assert app.Folder.query.filter_by(user_id=alice.id, name="Langs").count() == 1
-
-
-def test_home_recent_excludes_other_users_decks(client, invite, app):
-    _register(client, invite, "alice", "correct-horse-1")
-    client.post("/logout")
-    _register(client, invite, "bob", "correct-horse-2")
-    client.post("/logout")
-
-    alice = app.User.query.filter_by(username="alice").one()
-    bob = app.User.query.filter_by(username="bob").one()
-
-    bd = _mk_deck(app, bob, "BobsSecret")
-    # Bob opens his own deck
-    _login(client, "bob", "correct-horse-2")
-    client.get(f"/decks/{bd.id}/cards")
-    client.post("/logout")
-
-    _login(client, "alice", "correct-horse-1")
     r = client.get("/home")
-    assert b"BobsSecret" not in r.data
+    assert r.status_code == 200
+    assert b"New deck" not in r.data
