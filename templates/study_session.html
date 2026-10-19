@@ -6,7 +6,11 @@
   <div class="progress-label">{{ position }} of {{ total }}</div>
 </div>
 
-<h1 class="study-question">{{ attempt.card_snapshot_q }}</h1>
+<div class="study-card-stage">
+  <div class="study-card"{% if session.deck.color %} style="--deck-color: {{ session.deck.color }};"{% endif %}>
+    <h1 class="study-card-text">{{ attempt.card_snapshot_q }}</h1>
+  </div>
+</div>
 
 <form method="post" action="{{ url_for('study_submit', session_id=session.id) }}" class="study-answer">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

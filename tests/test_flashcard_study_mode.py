@@ -95,6 +95,41 @@ def test_start_flashcard_session_renders_flip_card(client, invite, app):
     assert "Space" in body
 
 
+def test_flashcard_card_uses_deck_colour(client, invite, app):
+    _register(client, invite, "alice")
+    alice = app.User.query.filter_by(username="alice").one()
+    _mk_deck_with_cards(app, alice.id, 2)
+    deck = app.Deck.query.filter_by(user_id=alice.id).one()
+    deck.color = "#c8ecd6"
+    app.db.session.commit()
+
+    loc = _start_flashcard_session(client, deck.id, 2)
+    body = client.get(loc).data.decode()
+    # Deck colour reaches the flashcard button via the --deck-color CSS var.
+    assert "--deck-color: #c8ecd6" in body
+    # Both faces use the shared .study-card class.
+    assert "study-card flashcard-face flashcard-front" in body
+    assert "study-card flashcard-face flashcard-back" in body
+
+
+def test_study_session_question_uses_deck_colour(client, invite, app):
+    _register(client, invite, "alice")
+    alice = app.User.query.filter_by(username="alice").one()
+    _mk_deck_with_cards(app, alice.id, 2)
+    deck = app.Deck.query.filter_by(user_id=alice.id).one()
+    deck.color = "#ffd6d6"
+    app.db.session.commit()
+
+    # Default (written) mode.
+    r = client.post(
+        f"/decks/{deck.id}/study",
+        data={"mode": "written", "n_cards": 2, "order": "created", "submit": "Start"},
+    )
+    body = client.get(r.headers["Location"]).data.decode()
+    assert "--deck-color: #ffd6d6" in body
+    assert 'class="study-card"' in body
+
+
 def test_flashcard_session_db_shape(app, client, invite):
     _register(client, invite, "alice")
     alice = app.User.query.filter_by(username="alice").one()

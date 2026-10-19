@@ -1,5 +1,27 @@
 # Changelog
 
+## v1.4.1 — 2026-10-19
+
+**Study cards now use the deck's own colour.** All three study modes
+render the card as a square tile in the deck's palette, matching the
+deck tile on the folder page. Flashcard back face is rendered in a
+slightly darker shade (brightness 0.9) so you can tell front from back
+during the flip.
+
+- New shared `.study-card` class (square aspect ratio, deck-coloured
+  background via `--deck-color` inline var, no stack-of-three jitter,
+  no icons). Used by `study_session.html` for the written/MC question
+  panel and by both faces of the flashcard.
+- `study_flashcard.html`: both faces wrapped in `.study-card`; `.flashcard`
+  button loses its own sizing (handled by the shared class) and keeps
+  just the 3D flip bits (`transform-style`, `rotateY`, `backface-visibility`).
+- `.flashcard .flashcard-back` gets `filter: brightness(0.9)` so the
+  back of the card is visibly a darker shade of the same colour.
+- Dark mode: deck pastels stay as-is (same as deck tiles); only cards
+  without a colour fall back to the dark panel colour.
+- 2 new tests confirming the deck colour reaches both the flashcard
+  and the written-mode question panel.
+
 ## v1.4.0 — 2026-10-19
 
 **Flashcards mode.** A third study mode alongside Written and Multiple

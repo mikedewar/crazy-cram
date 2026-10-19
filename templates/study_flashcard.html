@@ -6,12 +6,17 @@
   <div class="progress-label">{{ position }} of {{ total }}</div>
 </div>
 
-<div class="flashcard-stage">
+<div class="study-card-stage flashcard-stage">
   <button type="button" class="flashcard" id="flashcard"
           aria-pressed="false"
-          aria-label="Flip card">
-    <span class="flashcard-face flashcard-front">{{ attempt.card_snapshot_q }}</span>
-    <span class="flashcard-face flashcard-back">{{ attempt.card_snapshot_a }}</span>
+          aria-label="Flip card"
+          {% if session.deck.color %}style="--deck-color: {{ session.deck.color }};"{% endif %}>
+    <span class="study-card flashcard-face flashcard-front">
+      <span class="study-card-text">{{ attempt.card_snapshot_q }}</span>
+    </span>
+    <span class="study-card flashcard-face flashcard-back">
+      <span class="study-card-text">{{ attempt.card_snapshot_a }}</span>
+    </span>
   </button>
   <p class="flashcard-hint muted">Tap the card or press <kbd>Space</kbd> to flip.</p>
 </div>
