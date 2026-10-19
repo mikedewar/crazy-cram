@@ -2,9 +2,13 @@
 {% block title %}Study {{ deck.name }} — Crazy-Cram{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Study: {{ deck.name }}</h1>
+  <h1>Study - {% if deck.folder %}{{ deck.folder.name }}: {% endif %}{{ deck.name }}</h1>
   <div class="page-head-actions">
-    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+    {% if deck.folder %}
+    <a class="btn-secondary" href="{{ url_for('folder_detail', folder_id=deck.folder.id) }}">← {{ deck.folder.name }}</a>
+    {% else %}
+    <a class="btn-secondary" href="{{ url_for('folder_unfiled') }}">← Unfiled</a>
+    {% endif %}
   </div>
 </div>
 

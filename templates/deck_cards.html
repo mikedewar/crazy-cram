@@ -9,6 +9,9 @@
     {% else %}
     <a class="btn-secondary" href="{{ url_for('folder_unfiled') }}">← Unfiled</a>
     {% endif %}
+    {% if cards %}
+    <a class="btn" href="{{ url_for('study_config', deck_id=deck.id) }}">Study</a>
+    {% endif %}
   </div>
 </div>
 
