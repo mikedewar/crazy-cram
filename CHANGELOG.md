@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.2 — 2026-10-19
+
+**Flashcard focus ring fix.** On hover/click the flashcard was showing
+a thick blue border on only two sides. Cause: the `.flashcard` button
+retains focus after a click, and its `outline` was being projected
+through the surrounding `perspective: 1200px` / `preserve-3d`
+transform, so the outline rendered asymmetrically depending on which
+face was front.
+
+- Replace `.flashcard` outline with a `box-shadow` on the inner
+  `.flashcard-face` (which lives inside the 3D context in the right
+  place), gated on `:focus-visible` so a mouse click no longer leaves
+  a sticky ring.
+- Explicitly remove the browser default `:focus` outline on the
+  button so a plain click never shows a ring.
+
 ## v1.4.1 — 2026-10-19
 
 **Study cards now use the deck's own colour.** All three study modes

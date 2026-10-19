@@ -443,7 +443,8 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   transform: rotateY(180deg);
   filter: brightness(0.9);
 }
-.flashcard:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 4px; border-radius: .5rem; }
+.flashcard:focus { outline: none; }
+.flashcard:focus-visible .flashcard-face { box-shadow: 0 0 0 2px #4c8bf5; }
 .flashcard-hint {
   text-align: center;
   font-size: .9rem;
