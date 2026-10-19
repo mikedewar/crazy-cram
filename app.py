@@ -149,7 +149,7 @@ CARD_SIDE_MAX = 500
 # MC study mode: 1 correct + 3 distractors drawn from other cards in the deck.
 MC_OPTIONS_PER_QUESTION = 4
 MC_MIN_DECK_SIZE = MC_OPTIONS_PER_QUESTION  # need at least this many cards to run MC
-STUDY_MODES = ("written", "mc")
+STUDY_MODES = ("written", "mc", "flashcard")
 DECK_NAME_MAX = 120
 FOLDER_NAME_MAX = 64
 
@@ -902,7 +902,7 @@ def mc_options_for(attempt):
 class StudyConfigForm(FlaskForm):
     mode = RadioField(
         "Study mode",
-        choices=[("written", "Written"), ("mc", "Multiple choice")],
+        choices=[("written", "Written"), ("mc", "Multiple choice"), ("flashcard", "Flashcards")],
         default="written",
         validators=[DataRequired()],
     )
@@ -1020,6 +1020,12 @@ def study_session(session_id):
         # Shouldn't happen — finalize defensively and redirect to results.
         _finalize_session(s)
         return redirect(url_for("study_results", session_id=s.id))
+    if s.mode == "flashcard":
+        return render_template(
+            "study_flashcard.html",
+            session=s, attempt=attempt,
+            position=attempt.position + 1, total=s.n_cards,
+        )
     options = mc_options_for(attempt) if s.mode == "mc" else None
     return render_template(
         "study_session.html",
@@ -1046,13 +1052,19 @@ def study_submit(session_id):
         # Double-submit — ignore silently, go to whatever's next.
         return redirect(url_for("study_session", session_id=s.id))
 
-    raw = request.form.get("answer", "") or ""
-    # Trim to schema cap so a paste-bomb can't blow up the insert.
-    if len(raw) > CARD_SIDE_MAX:
-        raw = raw[:CARD_SIDE_MAX]
-
-    attempt.student_answer = raw
-    attempt.is_correct = answers_match(raw, attempt.card_snapshot_a)
+    if s.mode == "flashcard":
+        verdict = request.form.get("self_grade")
+        if verdict not in ("right", "wrong"):
+            abort(400)
+        attempt.student_answer = None
+        attempt.is_correct = (verdict == "right")
+    else:
+        raw = request.form.get("answer", "") or ""
+        # Trim to schema cap so a paste-bomb can't blow up the insert.
+        if len(raw) > CARD_SIDE_MAX:
+            raw = raw[:CARD_SIDE_MAX]
+        attempt.student_answer = raw
+        attempt.is_correct = answers_match(raw, attempt.card_snapshot_a)
     attempt.attempted_at = datetime.now(timezone.utc)
     db.session.commit()
 

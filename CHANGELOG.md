@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.4.0 — 2026-10-19
+
+**Flashcards mode.** A third study mode alongside Written and Multiple
+choice. One card foregrounded at a time, tap or Space to flip (both
+directions, any number of times), then self-grade Right / Wrong. No
+schema change — reuses `StudySession.mode` with a new value `flashcard`.
+
+- `STUDY_MODES` gains `"flashcard"`; `StudyConfigForm.mode` gains a third
+  radio ("Flashcards"); enabled at any card count ≥ 1.
+- `templates/study_flashcard.html`: progress bar, a `<button>` card with
+  3D CSS flip (`transform: rotateY(180deg)` + `backface-visibility`),
+  hint text showing the Space shortcut, Wrong/Right submit buttons.
+- `study_session` branches on `s.mode == "flashcard"` and renders the new
+  template; `study_submit` reads `self_grade` from the form (`right` →
+  `is_correct=True`, `wrong` → `False`), leaves `student_answer` NULL.
+  Rejects missing/bogus `self_grade` with 400.
+- `templates/study_results.html` adds a flashcard branch: shows the
+  card's answer and whether the student self-graded it right or wrong.
+- Restart carries flashcard mode forward (same path as MC/written).
+- 11 new tests cover: config radio renders & enabled at 1 card; session
+  renders flip card + grade buttons; DB shape; right/wrong record;
+  missing/bogus grade rejected; full end-to-end session scoring; restart
+  preserves mode; cross-user 404 isolation.
+- 236 tests green on the suite.
+
 ## v1.3.2 — 2026-10-19
 
 **Home page slimmed down to folder-first navigation.** The home page is now

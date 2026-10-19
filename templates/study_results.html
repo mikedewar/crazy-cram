@@ -28,7 +28,16 @@
     <li class="result-row {{ 'right' if a.is_correct else 'wrong' }}">
       <div class="result-q"><span class="result-label">Q</span> {{ a.card_snapshot_q }}</div>
 
-      {% if a.is_correct %}
+      {% if session.mode == 'flashcard' %}
+        <div class="result-a">
+          <span class="result-label">A</span>
+          <span>{{ a.card_snapshot_a }}</span>
+        </div>
+        <div class="result-a">
+          <span class="result-label">You</span>
+          <span>{{ 'Got it right' if a.is_correct else 'Got it wrong' }}</span>
+        </div>
+      {% elif a.is_correct %}
         <div class="result-a">
           <span class="result-label">✓</span> <span>{{ a.student_answer }}</span>
         </div>

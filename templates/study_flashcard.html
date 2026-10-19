@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Studying — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="progress" aria-label="{{ position }} of {{ total }}">
+  <div class="progress-bar" style="width: {{ (position / total * 100) | round(2) }}%;"></div>
+  <div class="progress-label">{{ position }} of {{ total }}</div>
+</div>
+
+<div class="flashcard-stage">
+  <button type="button" class="flashcard" id="flashcard"
+          aria-pressed="false"
+          aria-label="Flip card">
+    <span class="flashcard-face flashcard-front">{{ attempt.card_snapshot_q }}</span>
+    <span class="flashcard-face flashcard-back">{{ attempt.card_snapshot_a }}</span>
+  </button>
+  <p class="flashcard-hint muted">Tap the card or press <kbd>Space</kbd> to flip.</p>
+</div>
+
+<form method="post" action="{{ url_for('study_submit', session_id=session.id) }}" class="flashcard-grade">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
+  <button type="submit" name="self_grade" value="wrong" class="btn-grade btn-grade-wrong">Wrong</button>
+  <button type="submit" name="self_grade" value="right" class="btn-grade btn-grade-right">Right</button>
+</form>
+
+<p class="muted"><a href="{{ url_for('home') }}">Quit to decks</a></p>
+
+<script>
+  (function () {
+    var card = document.getElementById('flashcard');
+    if (!card) return;
+    function flip() {
+      var flipped = card.classList.toggle('is-flipped');
+      card.setAttribute('aria-pressed', flipped ? 'true' : 'false');
+    }
+    card.addEventListener('click', flip);
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== ' ' && e.code !== 'Space') return;
+      var t = e.target;
+      // Space on a submit button activates it — leave that alone.
+      if (t && (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
+        if (t.id !== 'flashcard') return;
+      }
+      e.preventDefault();
+      flip();
+    });
+  })();
+</script>
+{% endblock %}

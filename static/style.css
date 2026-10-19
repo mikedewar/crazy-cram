@@ -390,6 +390,87 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   .mc-options legend { color: #bbb; }
 }
 
+/* --- Flashcard mode ------------------------------------------------ */
+
+.flashcard-stage {
+  perspective: 1200px;
+  margin: 1.5rem 0 .75rem;
+}
+.flashcard {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 14rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform .5s;
+  font: inherit;
+  color: inherit;
+}
+.flashcard.is-flipped { transform: rotateY(180deg); }
+.flashcard-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  border: 1px solid #8884;
+  border-radius: .75rem;
+  background: #fff;
+  font-size: 1.6rem;
+  font-weight: 500;
+  text-align: center;
+  word-wrap: break-word;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.flashcard-back { transform: rotateY(180deg); }
+.flashcard:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 4px; border-radius: .75rem; }
+.flashcard-hint {
+  text-align: center;
+  font-size: .9rem;
+  margin: .5rem 0 1.25rem;
+}
+.flashcard-hint kbd {
+  font: inherit;
+  background: #8882;
+  border: 1px solid #8886;
+  border-radius: .25rem;
+  padding: 0 .35rem;
+}
+
+.flashcard-grade {
+  display: flex;
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+.btn-grade {
+  flex: 1;
+  padding: .75rem 1rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+  border-radius: .4rem;
+  border: 1px solid #8886;
+  cursor: pointer;
+}
+.btn-grade-wrong { background: #ffd6d6; color: #5a1a1a; }
+.btn-grade-wrong:hover { background: #ffbdbd; }
+.btn-grade-right { background: #c8ecd6; color: #1a4a2a; }
+.btn-grade-right:hover { background: #a9e0bf; }
+
+@media (prefers-color-scheme: dark) {
+  .flashcard-face { background: #1e1e1e; border-color: #444; color: #eee; }
+  .btn-grade-wrong { background: #4a1f1f; color: #ffd6d6; border-color: #5a2a2a; }
+  .btn-grade-wrong:hover { background: #5a2727; }
+  .btn-grade-right { background: #1f3a28; color: #c8ecd6; border-color: #2a4a35; }
+  .btn-grade-right:hover { background: #27472f; }
+  .flashcard-hint kbd { background: #333; border-color: #555; }
+}
+
 /* --- Results ------------------------------------------------------- */
 
 .score { font-size: 1.35rem; margin: 0 0 1rem; }
