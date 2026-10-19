@@ -29,17 +29,36 @@
         {{ sub(disabled=True) }} {{ sub.label.text }}
         <span class="muted">(needs {{ mc_min_deck_size }}+ cards)</span>
       </label>
+      {% elif sub.data == 'learn' and not learn_available %}
+      <label class="radio radio-disabled">
+        {{ sub(disabled=True) }} {{ sub.label.text }}
+        <span class="muted">(needs {{ learn_min_deck_size }}+ cards)</span>
+      </label>
       {% else %}
       <label class="radio">{{ sub }} {{ sub.label.text }}</label>
       {% endif %}
     {% endfor %}
     {% for e in form.mode.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </fieldset>
-  <p>
+  {# Learn always uses the whole deck in §1 — n_cards is irrelevant. #}
+  <p id="n-cards-field">
     {{ form.n_cards.label }}<br>
     {{ form.n_cards(type="number", min=1, max=total, autofocus=True) }}
     {% for e in form.n_cards.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </p>
+  <script>
+    (function () {
+      var field = document.getElementById('n-cards-field');
+      var radios = document.querySelectorAll('input[name="mode"]');
+      function sync() {
+        var sel = document.querySelector('input[name="mode"]:checked');
+        var hide = sel && sel.value === 'learn';
+        field.style.display = hide ? 'none' : '';
+      }
+      radios.forEach(function (r) { r.addEventListener('change', sync); });
+      sync();
+    })();
+  </script>
   <fieldset class="radio-group">
     <legend>{{ form.order.label.text }}</legend>
     {% for sub in form.order %}

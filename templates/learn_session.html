@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Learn — Section {{ section }} — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="learn-sections" aria-label="Section {{ section }} of {{ total_sections }}">
+  {% for i in range(1, total_sections + 1) %}
+    <span class="learn-section-segment{% if i < section %} done{% elif i == section %} active{% endif %}">{{ i }}</span>
+  {% endfor %}
+</div>
+
+<p class="muted learn-section-label">
+  Section {{ section }} —
+  {% if section_mode == 'mc' %}multiple choice{% else %}written{% endif %}
+</p>
+
+<div class="progress" aria-label="{{ position }} of {{ section_total }}">
+  <div class="progress-bar" style="width: {{ (position / section_total * 100) | round(2) }}%;"></div>
+  <div class="progress-label">{{ position }} of {{ section_total }}</div>
+</div>
+
+<div class="study-card-stage">
+  <div class="study-card"{% if session.deck.color %} style="--deck-color: {{ session.deck.color }};"{% endif %}>
+    <h1 class="study-card-text">{{ attempt.card_snapshot_q }}</h1>
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('learn_submit', session_id=session.id) }}" class="study-answer">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="attempt_id" value="{{ attempt.id }}">
+  {% if options %}
+    <fieldset class="mc-options">
+      <legend class="visually-hidden">Pick an answer</legend>
+      {% for opt in options %}
+        <label class="mc-option">
+          <input type="radio" name="answer" value="{{ opt }}">
+          <span>{{ opt }}</span>
+        </label>
+      {% endfor %}
+    </fieldset>
+    <p><button type="submit" name="skip" value="1" class="btn-skip">Skip</button></p>
+    <script>
+      (function () {
+        var form = document.currentScript.closest('form');
+        form.addEventListener('change', function (e) {
+          if (e.target && e.target.type === 'radio' && e.target.name === 'answer') {
+            form.submit();
+          }
+        });
+      })();
+    </script>
+  {% else %}
+    <label for="answer">Your answer</label>
+    <input type="text" name="answer" id="answer" autocomplete="off"
+           autocapitalize="off" spellcheck="false" autofocus
+           maxlength="500">
+    <p><button type="submit">Submit (Enter)</button></p>
+  {% endif %}
+</form>
+
+<p class="muted"><a href="{{ url_for('home') }}">Quit to decks</a></p>
+{% endblock %}

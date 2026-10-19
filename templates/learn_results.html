@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Learn results — {{ deck.name }} — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Learn results</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+  </div>
+</div>
+
+<p class="score">
+  <strong>{{ s5_right }} / {{ s5_total }}</strong> correct
+  <span class="muted">in section {{ total_sections }} ({{ deck.name }})</span>
+</p>
+
+<p class="actions">
+  <form method="post" action="{{ url_for('study_restart', session_id=session.id) }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn">Restart</button>
+  </form>
+  <a class="btn-secondary" href="{{ url_for('study_config', deck_id=deck.id) }}">Change config</a>
+  <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=deck.id) }}">Edit cards</a>
+</p>
+
+{% if most_missed %}
+<section class="learn-most-missed">
+  <h2>Most-missed</h2>
+  <p class="muted">Across all {{ total_sections }} sections.</p>
+  <ol class="result-list">
+    {% for m in most_missed %}
+      <li class="result-row {% if m.wrong > m.right %}wrong{% else %}right{% endif %}">
+        <div class="result-q"><span class="result-label">Q</span> {{ m.question }}</div>
+        <div class="result-a"><span class="result-label">A</span> <span>{{ m.answer }}</span></div>
+        <div class="result-a">
+          <span class="result-label">Record</span>
+          <span><strong>{{ m.wrong }}</strong> wrong · {{ m.right }} right</span>
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endif %}
+
+<section class="learn-section-5">
+  <h2>Section {{ total_sections }} marking</h2>
+  <ol class="result-list">
+    {% for row in s5_rows %}
+      {% set a = row.attempt %}
+      <li class="result-row {{ 'right' if a.is_correct else 'wrong' }}">
+        <div class="result-q"><span class="result-label">Q</span> {{ a.card_snapshot_q }}</div>
+        {% if a.is_correct %}
+          <div class="result-a"><span class="result-label">✓</span> <span>{{ a.student_answer }}</span></div>
+        {% else %}
+          <div class="result-a">
+            <span class="result-label">You</span>
+            <span class="diff-line">
+              {% if a.student_answer %}
+                {% for kind, ch in row.student_side -%}
+                  <span class="diff-{{ kind }}">{{ ch }}</span>
+                {%- endfor %}
+              {% else %}
+                <em class="muted">(blank)</em>
+              {% endif %}
+            </span>
+          </div>
+          <div class="result-a">
+            <span class="result-label">Correct</span>
+            <span class="diff-line">
+              {% for kind, ch in row.correct_side -%}
+                <span class="diff-{{ kind }}">{{ ch }}</span>
+              {%- endfor %}
+            </span>
+          </div>
+          {% if a.card_id %}
+          <div class="result-actions">
+            <a class="btn-secondary" href="{{ url_for('card_edit', card_id=a.card_id, return_to=session.id) }}">Edit this card</a>
+          </div>
+          {% endif %}
+        {% endif %}
+        <div class="result-a">
+          <span class="result-label">Record</span>
+          <span class="muted"><strong>{{ row.right_total }}</strong> right · <strong>{{ row.wrong_total }}</strong> wrong across all sections</span>
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

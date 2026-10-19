@@ -149,7 +149,9 @@ CARD_SIDE_MAX = 500
 # MC study mode: 1 correct + 3 distractors drawn from other cards in the deck.
 MC_OPTIONS_PER_QUESTION = 4
 MC_MIN_DECK_SIZE = MC_OPTIONS_PER_QUESTION  # need at least this many cards to run MC
-STUDY_MODES = ("written", "mc", "flashcard")
+STUDY_MODES = ("written", "mc", "flashcard", "learn")
+LEARN_TOTAL_SECTIONS = 5
+LEARN_MIN_DECK_SIZE = MC_MIN_DECK_SIZE  # Learn uses MC in 3 of 5 sections
 DECK_NAME_MAX = 120
 FOLDER_NAME_MAX = 64
 
@@ -248,6 +250,8 @@ class StudySession(db.Model):
     n_cards = db.Column(db.Integer, nullable=False)
     shuffled = db.Column(db.Boolean, nullable=False, default=True)
     mode = db.Column(db.String(16), nullable=False, default="written")
+    # Which section the Learn run is currently on (1..5). NULL for non-Learn.
+    learn_section = db.Column(db.Integer, nullable=True)
     started_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     finished_at = db.Column(db.DateTime, nullable=True)
     score = db.Column(db.Integer, nullable=True)
@@ -280,6 +284,8 @@ class StudyAttempt(db.Model):
     is_correct = db.Column(db.Boolean, nullable=True)
     position = db.Column(db.Integer, nullable=False)
     attempted_at = db.Column(db.DateTime, nullable=True)
+    # NULL for non-Learn modes; 1..LEARN_TOTAL_SECTIONS for Learn.
+    section = db.Column(db.Integer, nullable=True)
 
 
 @login_manager.user_loader
@@ -902,7 +908,7 @@ def mc_options_for(attempt):
 class StudyConfigForm(FlaskForm):
     mode = RadioField(
         "Study mode",
-        choices=[("written", "Written"), ("mc", "Multiple choice"), ("flashcard", "Flashcards")],
+        choices=[("written", "Written"), ("mc", "Multiple choice"), ("flashcard", "Flashcards"), ("learn", "Learn")],
         default="written",
         validators=[DataRequired()],
     )
@@ -937,12 +943,15 @@ def study_config(deck_id):
     )
     total = len(cards)
     mc_available = total >= MC_MIN_DECK_SIZE
+    learn_available = total >= LEARN_MIN_DECK_SIZE
 
     if total == 0:
         # No form / no Start button — the template shows a link to add cards.
         return render_template(
             "study_config.html", deck=deck, total=0, form=None,
-            mc_available=False, mc_min_deck_size=MC_MIN_DECK_SIZE,
+            mc_available=False, learn_available=False,
+            mc_min_deck_size=MC_MIN_DECK_SIZE,
+            learn_min_deck_size=LEARN_MIN_DECK_SIZE,
         )
 
     form = StudyConfigForm()
@@ -951,18 +960,59 @@ def study_config(deck_id):
 
     if form.validate_on_submit():
         mode = form.mode.data if form.mode.data in STUDY_MODES else "written"
-        # Reject MC if deck has shrunk below the minimum between form render
-        # and submit (or if someone POSTs mc on a tiny deck directly).
+        # Reject MC/Learn if deck has shrunk below the minimum between form
+        # render and submit (or if someone POSTs them directly on a tiny deck).
         if mode == "mc" and not mc_available:
             flash(
                 f"Multiple choice needs at least {MC_MIN_DECK_SIZE} cards in the deck.",
                 "error",
             )
             return redirect(url_for("study_config", deck_id=deck.id))
+        if mode == "learn" and not learn_available:
+            flash(
+                f"Learn mode needs at least {LEARN_MIN_DECK_SIZE} cards in the deck.",
+                "error",
+            )
+            return redirect(url_for("study_config", deck_id=deck.id))
+
+        shuffled = form.order.data == "shuffle"
+
+        if mode == "learn":
+            # Learn always uses the whole deck in section 1; n_cards on the
+            # session row is the running total across all 5 sections and gets
+            # patched up as sections are composed. Start with section 1's size.
+            chosen = list(cards)
+            if shuffled:
+                random.shuffle(chosen)
+            s = StudySession(
+                user_id=current_user.id,
+                deck_id=deck.id,
+                n_cards=len(chosen),
+                shuffled=shuffled,
+                mode="learn",
+                learn_section=1,
+            )
+            db.session.add(s)
+            db.session.flush()
+            for i, c in enumerate(chosen):
+                db.session.add(StudyAttempt(
+                    session_id=s.id,
+                    card_id=c.id,
+                    card_snapshot_q=c.question,
+                    card_snapshot_a=c.answer,
+                    position=i,
+                    section=1,
+                ))
+            db.session.commit()
+            _log_event(
+                "study_session_start",
+                user_id=current_user.id, session_id=s.id,
+                deck_id=deck.id, n_cards=len(chosen), shuffled=shuffled, mode="learn",
+            )
+            return redirect(url_for("learn_section", session_id=s.id))
 
         # Clamp requested count silently to what's actually available.
         n = min(max(1, form.n_cards.data), total)
-        shuffled = form.order.data == "shuffle"
 
         chosen = list(cards)
         if shuffled:
@@ -996,7 +1046,9 @@ def study_config(deck_id):
 
     return render_template(
         "study_config.html", deck=deck, total=total, form=form,
-        mc_available=mc_available, mc_min_deck_size=MC_MIN_DECK_SIZE,
+        mc_available=mc_available, learn_available=learn_available,
+        mc_min_deck_size=MC_MIN_DECK_SIZE,
+        learn_min_deck_size=LEARN_MIN_DECK_SIZE,
     )
 
 
@@ -1013,6 +1065,10 @@ def _next_unanswered(session):
 @login_required
 def study_session(session_id):
     s = _owned_session_or_404(session_id)
+    if s.mode == "learn":
+        if s.finished_at is not None:
+            return redirect(url_for("learn_results", session_id=s.id))
+        return redirect(url_for("learn_section", session_id=s.id))
     if s.finished_at is not None:
         return redirect(url_for("study_results", session_id=s.id))
     attempt = _next_unanswered(s)
@@ -1096,6 +1152,8 @@ def _finalize_session(s):
 @login_required
 def study_results(session_id):
     s = _owned_session_or_404(session_id)
+    if s.mode == "learn":
+        return redirect(url_for("learn_results", session_id=s.id))
     if s.finished_at is None:
         # Not finished yet — send them back to the loop.
         return redirect(url_for("study_session", session_id=s.id))
@@ -1160,6 +1218,49 @@ def study_restart(session_id):
             f"Multiple choice needs at least {MC_MIN_DECK_SIZE} cards — restarted in written mode.",
             "info",
         )
+    if new_mode == "learn" and len(cards) < LEARN_MIN_DECK_SIZE:
+        new_mode = "written"
+        flash(
+            f"Learn mode needs at least {LEARN_MIN_DECK_SIZE} cards — restarted in written mode.",
+            "info",
+        )
+
+    # Learn restart: forward to study_config with mode preselected rather
+    # than reusing this entry point, so the state machine seeds section 1
+    # cleanly. (Carrying n_cards/shuffle through a Learn restart isn't
+    # meaningful — Learn always uses the whole deck in §1.)
+    if new_mode == "learn":
+        # Re-seed a fresh Learn session: whole deck in §1.
+        chosen = list(cards)
+        if old.shuffled:
+            random.shuffle(chosen)
+        s = StudySession(
+            user_id=current_user.id,
+            deck_id=deck.id,
+            n_cards=len(chosen),
+            shuffled=old.shuffled,
+            mode="learn",
+            learn_section=1,
+        )
+        db.session.add(s)
+        db.session.flush()
+        for i, c in enumerate(chosen):
+            db.session.add(StudyAttempt(
+                session_id=s.id,
+                card_id=c.id,
+                card_snapshot_q=c.question,
+                card_snapshot_a=c.answer,
+                position=i,
+                section=1,
+            ))
+        db.session.commit()
+        _log_event(
+            "study_session_start",
+            user_id=current_user.id, session_id=s.id,
+            deck_id=deck.id, n_cards=len(chosen), shuffled=old.shuffled,
+            mode="learn", restart_of=old.id,
+        )
+        return redirect(url_for("learn_section", session_id=s.id))
 
     s = StudySession(
         user_id=current_user.id,
@@ -1186,6 +1287,352 @@ def study_restart(session_id):
         mode=new_mode, restart_of=old.id,
     )
     return redirect(url_for("study_session", session_id=s.id))
+
+
+# --- Learn mode -------------------------------------------------------
+# Five-section guided study run. Section composition depends on prior
+# results, so we build each section when the previous one ends.
+#   §1 MC — every card in the deck
+#   §2 MC — cards wrong in §1
+#   §3 Written — cards right in §1 AND §2 (right in whichever they were in)
+#   §4 MC — cards wrong in §2 AND §3
+#   §5 Written — every card in the deck
+# Empty sections still get an interstitial ("nothing to review") so the
+# six-page promise stays visible, then the next one is composed.
+
+
+def _owned_learn_session_or_404(session_id):
+    s = _owned_session_or_404(session_id)
+    if s.mode != "learn":
+        abort(404)
+    return s
+
+
+def _learn_attempts(session, section):
+    return (
+        StudyAttempt.query
+        .filter_by(session_id=session.id, section=section)
+        .order_by(StudyAttempt.position.asc())
+        .all()
+    )
+
+
+def _learn_section_complete(session, section):
+    """True if the section's attempts (if any) are all answered.
+    An empty section is trivially complete (nothing to answer).
+    """
+    attempts = _learn_attempts(session, section)
+    if not attempts:
+        return True
+    return all(a.is_correct is not None for a in attempts)
+
+
+def _learn_current_section(session):
+    """The section the student is currently playing (1..5)."""
+    return int(session.learn_section or 1)
+
+
+def _learn_section_mode(section):
+    # §3 and §5 are written; §1, §2, §4 are MC.
+    return "written" if section in (3, 5) else "mc"
+
+
+def _learn_attempts_for_cards(session, cards_in_order, section):
+    """Create StudyAttempt rows for `cards_in_order` in `section`.
+
+    Positions continue from the current max position so attempts across
+    sections are totally ordered — section 1 fills 0..k-1, section 2
+    fills k..k+m-1, etc. That keeps `_next_unanswered`-style ordering
+    sensible even though Learn has its own routes.
+    """
+    base = (
+        db.session.query(func.coalesce(func.max(StudyAttempt.position), -1))
+        .filter(StudyAttempt.session_id == session.id)
+        .scalar()
+    )
+    base = int(base) + 1
+    cards_in_order = list(cards_in_order)
+    if session.shuffled:
+        random.shuffle(cards_in_order)
+    for i, c in enumerate(cards_in_order):
+        db.session.add(StudyAttempt(
+            session_id=session.id,
+            card_id=c.id,
+            card_snapshot_q=c.question,
+            card_snapshot_a=c.answer,
+            position=base + i,
+            section=section,
+        ))
+
+
+def _learn_card_ids_right_in(session, sections):
+    """Card IDs the student got right in ANY of `sections`.
+
+    Uses card_id (not snapshot) so cards deleted mid-run drop out
+    naturally — nothing to study for a card that no longer exists.
+    """
+    rows = (
+        db.session.query(StudyAttempt.card_id)
+        .filter(StudyAttempt.session_id == session.id)
+        .filter(StudyAttempt.section.in_(sections))
+        .filter(StudyAttempt.is_correct.is_(True))
+        .filter(StudyAttempt.card_id.isnot(None))
+        .distinct()
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
+def _learn_card_ids_wrong_in(session, sections):
+    rows = (
+        db.session.query(StudyAttempt.card_id)
+        .filter(StudyAttempt.session_id == session.id)
+        .filter(StudyAttempt.section.in_(sections))
+        .filter(StudyAttempt.is_correct.is_(False))
+        .filter(StudyAttempt.card_id.isnot(None))
+        .distinct()
+        .all()
+    )
+    return [r[0] for r in rows]
+
+
+def _learn_cards_by_ids(deck_id, card_ids):
+    """Fetch current Card rows matching ids, ordered by created_at."""
+    if not card_ids:
+        return []
+    return (
+        Card.query
+        .filter(Card.deck_id == deck_id)
+        .filter(Card.id.in_(card_ids))
+        .order_by(Card.created_at.asc(), Card.id.asc())
+        .all()
+    )
+
+
+def _learn_compose_section(session, section):
+    """Build attempts for `section` based on prior-section results.
+
+    Does nothing if the section already has attempts (idempotent on
+    double-POST of advance).
+    """
+    if _learn_attempts(session, section):
+        return
+    deck_id = session.deck_id
+    if section == 2:
+        ids = _learn_card_ids_wrong_in(session, [1])
+    elif section == 3:
+        ids = sorted(set(_learn_card_ids_right_in(session, [1, 2])))
+    elif section == 4:
+        ids = sorted(set(_learn_card_ids_wrong_in(session, [2, 3])))
+    elif section == 5:
+        ids = [c.id for c in Card.query.filter_by(deck_id=deck_id)
+               .order_by(Card.created_at.asc(), Card.id.asc()).all()]
+    else:
+        return
+    cards = _learn_cards_by_ids(deck_id, ids) if section != 5 else (
+        Card.query.filter_by(deck_id=deck_id)
+        .order_by(Card.created_at.asc(), Card.id.asc()).all()
+    )
+    _learn_attempts_for_cards(session, cards, section)
+    # Keep n_cards in sync so results-page totals stay honest.
+    total = (
+        db.session.query(func.count(StudyAttempt.id))
+        .filter(StudyAttempt.session_id == session.id)
+        .scalar()
+    )
+    session.n_cards = int(total or 0)
+
+
+def _learn_next_unanswered(session, section):
+    return (
+        StudyAttempt.query
+        .filter_by(session_id=session.id, section=section, is_correct=None)
+        .order_by(StudyAttempt.position.asc())
+        .first()
+    )
+
+
+@app.route("/sessions/<int:session_id>/learn")
+@login_required
+def learn_section(session_id):
+    s = _owned_learn_session_or_404(session_id)
+    if s.finished_at is not None:
+        return redirect(url_for("learn_results", session_id=s.id))
+    section = _learn_current_section(s)
+    # If the current section is complete, send to interstitial (or results
+    # if §5). The advance route is what seeds the next one.
+    if _learn_section_complete(s, section):
+        if section >= LEARN_TOTAL_SECTIONS:
+            _finalize_session(s)
+            return redirect(url_for("learn_results", session_id=s.id))
+        return redirect(url_for("learn_interstitial",
+                                session_id=s.id, section=section))
+    attempt = _learn_next_unanswered(s, section)
+    if attempt is None:
+        # Shouldn't happen (complete check above), but defend defensively.
+        return redirect(url_for("learn_interstitial",
+                                session_id=s.id, section=section))
+    section_total = len(_learn_attempts(s, section))
+    position_in_section = sum(
+        1 for a in _learn_attempts(s, section) if a.position < attempt.position
+    ) + 1
+    mode = _learn_section_mode(section)
+    options = mc_options_for(attempt) if mode == "mc" else None
+    return render_template(
+        "learn_session.html",
+        session=s, attempt=attempt, options=options,
+        section=section, section_mode=mode,
+        total_sections=LEARN_TOTAL_SECTIONS,
+        position=position_in_section, section_total=section_total,
+    )
+
+
+@app.route("/sessions/<int:session_id>/learn/submit", methods=["POST"])
+@login_required
+def learn_submit(session_id):
+    s = _owned_learn_session_or_404(session_id)
+    if s.finished_at is not None:
+        return redirect(url_for("learn_results", session_id=s.id))
+
+    attempt_id = request.form.get("attempt_id", type=int)
+    if attempt_id is None:
+        abort(400)
+    attempt = db.session.get(StudyAttempt, attempt_id)
+    if attempt is None or attempt.session_id != s.id or attempt.section is None:
+        abort(404)
+    if attempt.is_correct is not None:
+        return redirect(url_for("learn_section", session_id=s.id))
+
+    raw = request.form.get("answer", "") or ""
+    if len(raw) > CARD_SIDE_MAX:
+        raw = raw[:CARD_SIDE_MAX]
+    attempt.student_answer = raw
+    attempt.is_correct = answers_match(raw, attempt.card_snapshot_a)
+    attempt.attempted_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return redirect(url_for("learn_section", session_id=s.id))
+
+
+@app.route("/sessions/<int:session_id>/learn/interstitial/<int:section>")
+@login_required
+def learn_interstitial(session_id, section):
+    s = _owned_learn_session_or_404(session_id)
+    if s.finished_at is not None:
+        return redirect(url_for("learn_results", session_id=s.id))
+    if not (1 <= section < LEARN_TOTAL_SECTIONS):
+        abort(404)
+    # Only valid once the named section has been fully answered.
+    if not _learn_section_complete(s, section):
+        return redirect(url_for("learn_section", session_id=s.id))
+
+    attempts = _learn_attempts(s, section)
+    right = [a for a in attempts if a.is_correct]
+    wrong = [a for a in attempts if a.is_correct is False]
+    section_total = len(attempts)
+    score = len(right)
+    return render_template(
+        "learn_interstitial.html",
+        session=s, deck=s.deck,
+        section=section, next_section=section + 1,
+        total_sections=LEARN_TOTAL_SECTIONS,
+        attempts=attempts, right=right, wrong=wrong,
+        score=score, section_total=section_total,
+        section_mode=_learn_section_mode(section),
+        next_section_mode=_learn_section_mode(section + 1),
+    )
+
+
+@app.route("/sessions/<int:session_id>/learn/advance", methods=["POST"])
+@login_required
+def learn_advance(session_id):
+    s = _owned_learn_session_or_404(session_id)
+    if s.finished_at is not None:
+        return redirect(url_for("learn_results", session_id=s.id))
+    from_section = request.form.get("from_section", type=int)
+    if from_section is None or not (1 <= from_section < LEARN_TOTAL_SECTIONS):
+        abort(400)
+    # Only advance if from_section is actually complete, defensively.
+    if not _learn_section_complete(s, from_section):
+        return redirect(url_for("learn_section", session_id=s.id))
+    next_section = from_section + 1
+    _learn_compose_section(s, next_section)
+    s.learn_section = next_section
+    db.session.commit()
+    # If §5 came out empty (deck was emptied mid-run), finalize now so
+    # the student lands on results instead of a stuck section screen.
+    if next_section >= LEARN_TOTAL_SECTIONS and not _learn_attempts(s, next_section):
+        _finalize_session(s)
+        return redirect(url_for("learn_results", session_id=s.id))
+    return redirect(url_for("learn_section", session_id=s.id))
+
+
+@app.route("/sessions/<int:session_id>/learn/results")
+@login_required
+def learn_results(session_id):
+    s = _owned_learn_session_or_404(session_id)
+    if s.finished_at is None:
+        return redirect(url_for("learn_section", session_id=s.id))
+
+    # §5 attempts for score + current-run marking.
+    section5 = _learn_attempts(s, 5)
+    s5_right = sum(1 for a in section5 if a.is_correct)
+    s5_total = len(section5)
+
+    # Aggregate across all sections: per-card right/wrong counts.
+    all_attempts = (
+        StudyAttempt.query
+        .filter(StudyAttempt.session_id == s.id)
+        .filter(StudyAttempt.section.isnot(None))
+        .all()
+    )
+    # Key by snapshot question so a deleted card still groups correctly.
+    counts = {}
+    for a in all_attempts:
+        key = (a.card_id, a.card_snapshot_q)
+        c = counts.setdefault(key, {
+            "card_id": a.card_id,
+            "question": a.card_snapshot_q,
+            "answer": a.card_snapshot_a,
+            "right": 0,
+            "wrong": 0,
+        })
+        if a.is_correct:
+            c["right"] += 1
+        elif a.is_correct is False:
+            c["wrong"] += 1
+
+    # Build the §5 marking rows (in order).
+    s5_rows = []
+    for a in section5:
+        key = (a.card_id, a.card_snapshot_q)
+        agg = counts.get(key, {"right": 0, "wrong": 0})
+        student_side, correct_side = ([], [])
+        if a.is_correct is False:
+            student_side, correct_side = char_diff_ops(
+                a.student_answer or "", a.card_snapshot_a
+            )
+        s5_rows.append({
+            "attempt": a,
+            "right_total": agg["right"],
+            "wrong_total": agg["wrong"],
+            "student_side": student_side,
+            "correct_side": correct_side,
+        })
+
+    # Most-missed = highest total wrong count across all 5 sections.
+    # Ties broken by lower right count, then by question text.
+    most_missed = sorted(
+        [c for c in counts.values() if c["wrong"] > 0],
+        key=lambda c: (-c["wrong"], c["right"], c["question"]),
+    )
+
+    return render_template(
+        "learn_results.html",
+        session=s, deck=s.deck,
+        s5_rows=s5_rows, s5_right=s5_right, s5_total=s5_total,
+        most_missed=most_missed,
+        total_sections=LEARN_TOTAL_SECTIONS,
+    )
 
 
 # --- Health check -----------------------------------------------------

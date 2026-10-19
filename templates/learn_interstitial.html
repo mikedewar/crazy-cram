@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Section {{ section }} done — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="learn-sections" aria-label="Section {{ section }} of {{ total_sections }}">
+  {% for i in range(1, total_sections + 1) %}
+    <span class="learn-section-segment{% if i <= section %} done{% endif %}">{{ i }}</span>
+  {% endfor %}
+</div>
+
+<form method="post" action="{{ url_for('learn_advance', session_id=session.id) }}" class="learn-advance">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="from_section" value="{{ section }}">
+  <button type="submit" class="btn">Next section →</button>
+</form>
+
+<h1>Finished Section {{ section }}</h1>
+<p class="score">
+  <strong>{{ score }} / {{ section_total }}</strong> correct
+  <span class="muted">in section {{ section }}</span>
+</p>
+
+<p class="muted">
+  Starting Section {{ next_section }} —
+  {% if next_section_mode == 'mc' %}multiple choice{% else %}written{% endif %}.
+</p>
+
+{% if section_total == 0 %}
+  <p class="muted"><em>Nothing to review in this section — moving on.</em></p>
+{% else %}
+  <section class="learn-interstitial-group">
+    <h2>Right <span class="muted">({{ right|length }})</span></h2>
+    {% if right %}
+    <ol class="result-list">
+      {% for a in right %}
+        <li class="result-row right">
+          <div class="result-q"><span class="result-label">Q</span> {{ a.card_snapshot_q }}</div>
+          <div class="result-a"><span class="result-label">A</span> <span>{{ a.card_snapshot_a }}</span></div>
+        </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted"><em>None.</em></p>
+    {% endif %}
+  </section>
+
+  <section class="learn-interstitial-group">
+    <h2>Wrong <span class="muted">({{ wrong|length }})</span></h2>
+    {% if wrong %}
+    <ol class="result-list">
+      {% for a in wrong %}
+        <li class="result-row wrong">
+          <div class="result-q"><span class="result-label">Q</span> {{ a.card_snapshot_q }}</div>
+          <div class="result-a"><span class="result-label">You</span>
+            {% if a.student_answer %}<span>{{ a.student_answer }}</span>{% else %}<em class="muted">(no pick)</em>{% endif %}
+          </div>
+          <div class="result-a"><span class="result-label">Correct</span> <span>{{ a.card_snapshot_a }}</span></div>
+        </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="muted"><em>None.</em></p>
+    {% endif %}
+  </section>
+{% endif %}
+
+<p class="muted"><a href="{{ url_for('home') }}">Quit to decks</a></p>
+{% endblock %}

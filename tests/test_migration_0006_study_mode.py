@@ -24,13 +24,28 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def _run_migrate(db_path: Path, target: str) -> subprocess.CompletedProcess:
+    """Migrate db to `target`. 'head' goes up to head; otherwise we ask
+    alembic for the current rev and up/down accordingly."""
     env = os.environ.copy()
     env["CRAZY_CRAM_DATABASE_URI"] = f"sqlite:///{db_path}"
     env["FLASK_APP"] = "app.py"
+    if target == "head":
+        cmd = ["db", "upgrade"]
+    else:
+        # Figure out direction. If target is at or below the current rev,
+        # downgrade; otherwise upgrade. Simpler proxy: just try upgrade,
+        # fall back to downgrade.
+        current = sqlite3.connect(db_path).execute(
+            "SELECT version_num FROM alembic_version"
+        ).fetchone()[0]
+        # Order of migrations we know about:
+        order = ["0001_baseline_v0", "0002_flashcards",
+                 "0003_invite_used_by_set_null", "0004_folders",
+                 "0005_deck_color", "0006_study_mode", "0007_learn_section"]
+        direction = "upgrade" if order.index(target) > order.index(current) else "downgrade"
+        cmd = ["db", direction, target]
     return subprocess.run(
-        [sys.executable, "-m", "flask", "db",
-         "upgrade" if target == "head" else "downgrade",
-         *([] if target == "head" else [target])],
+        [sys.executable, "-m", "flask", *cmd],
         cwd=ROOT, env=env, capture_output=True, text=True, check=True,
     )
 
@@ -90,7 +105,7 @@ def test_upgrade_preserves_study_attempts(tmp_path):
     assert pre_attempts == 4
     assert pre_sessions == 1
 
-    _run_migrate(db, "head")
+    _run_migrate(db, "0006_study_mode")
 
     c = sqlite3.connect(db)
     assert c.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0006_study_mode"
@@ -106,7 +121,7 @@ def test_round_trip_upgrade_downgrade_upgrade(tmp_path):
     """0005 → 0006 → 0005 → 0006 round-trip preserves all data."""
     db = tmp_path / "cc.db"
     _seed_0005_db(db)
-    _run_migrate(db, "head")
+    _run_migrate(db, "0006_study_mode")
     _run_migrate(db, "0005_deck_color")
 
     c = sqlite3.connect(db)
@@ -117,7 +132,7 @@ def test_round_trip_upgrade_downgrade_upgrade(tmp_path):
     assert "mode" not in cols
     c.close()
 
-    _run_migrate(db, "head")
+    _run_migrate(db, "0006_study_mode")
     c = sqlite3.connect(db)
     assert c.execute("SELECT COUNT(*) FROM study_attempt").fetchone()[0] == 4
     assert c.execute("SELECT COUNT(*) FROM study_session").fetchone()[0] == 1
@@ -128,7 +143,7 @@ def test_cascade_on_delete_still_fires_after_upgrade(tmp_path):
     """Deleting a session should still cascade to its attempts post-migration."""
     db = tmp_path / "cc.db"
     _seed_0005_db(db)
-    _run_migrate(db, "head")
+    _run_migrate(db, "0006_study_mode")
 
     c = sqlite3.connect(db)
     c.execute("PRAGMA foreign_keys=ON")

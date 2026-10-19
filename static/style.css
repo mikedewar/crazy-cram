@@ -537,3 +537,32 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 .admin-table th { font-weight: 600; }
 .admin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .admin-table code { font-size: .9em; }
+
+/* --- Learn mode --------------------------------------------------- */
+
+.learn-sections {
+  display: flex; gap: .4rem; margin: 0 0 .6rem; padding: 0; list-style: none;
+}
+.learn-section-segment {
+  flex: 1; text-align: center;
+  padding: .3rem .4rem;
+  border-radius: .35rem;
+  background: #8882;
+  font-variant-numeric: tabular-nums;
+  font-size: .9rem;
+  color: inherit;
+}
+.learn-section-segment.active { background: var(--deck-color, #cde); font-weight: 600; }
+.learn-section-segment.done { background: var(--deck-color, #cde); opacity: .55; }
+
+.learn-section-label { margin: 0 0 .8rem; font-size: .95rem; }
+
+.learn-advance { margin: 0 0 1rem; }
+
+.learn-interstitial-group { margin: 1.5rem 0; }
+.learn-interstitial-group h2 { margin-bottom: .5rem; }
+
+.learn-most-missed { margin: 1.5rem 0; }
+.learn-most-missed h2 { margin-bottom: .25rem; }
+
+.learn-section-5 { margin-top: 2rem; }

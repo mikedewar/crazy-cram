@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.5.0 — 2026-10-19
+
+**Learn study mode.** A new guided 5-section study progression,
+selected on `/decks/<id>/study` as the third option alongside Written
+and Flashcards. Needs 4+ cards (same gate as MC).
+
+- §1: multiple choice over every card in the deck.
+- §2: multiple choice over the cards you got wrong in §1.
+- §3: written over the cards you got right in §1 OR §2.
+- §4: multiple choice over the cards you got wrong in §2 OR §3.
+- §5: written over every card in the deck.
+- Between every section: an interstitial page showing that section's
+  score and a right/wrong breakdown, with "Next section →" at the top.
+  Empty sections still get an interstitial saying "nothing to review"
+  so the five-step progression is always visible.
+- Final results header is §5 score (`§5 right / §5 total`); a
+  "most-missed" panel ranks cards by total wrongs across all 5
+  sections; §5 marking shows each card's cumulative right/wrong record
+  across the whole run.
+- One `StudySession` per Learn run (not five); mid-run abandonment
+  leaves `finished_at IS NULL`. Added `study_session.learn_section`
+  and `study_attempt.section` as explicit section state (migration
+  `0007_learn_section`, wrapped in `_fks_off()` per the SQLite batch
+  FK trap).
+
 ## v1.4.2 — 2026-10-19
 
 **Flashcard focus ring fix.** On hover/click the flashcard was showing
