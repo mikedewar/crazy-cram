@@ -1,10 +1,14 @@
 {% extends "base.html" %}
-{% block title %}{{ deck.name }} — Cards — Crazy-Cram{% endblock %}
+{% block title %}{% if deck.folder %}{{ deck.folder.name }} : {% endif %}{{ deck.name }} — Cards — Crazy-Cram{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{{ deck.name }}</h1>
+  <h1>{% if deck.folder %}{{ deck.folder.name }} : {% endif %}{{ deck.name }}</h1>
   <div class="page-head-actions">
-    <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
+    {% if deck.folder %}
+    <a class="btn-secondary" href="{{ url_for('folder_detail', folder_id=deck.folder.id) }}">← {{ deck.folder.name }}</a>
+    {% else %}
+    <a class="btn-secondary" href="{{ url_for('folder_unfiled') }}">← Unfiled</a>
+    {% endif %}
   </div>
 </div>
 
