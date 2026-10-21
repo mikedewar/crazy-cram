@@ -255,6 +255,16 @@ a.folder-row:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
   z-index: 2;
   line-height: 0;
 }
+/* When the popover is open, promote the whole picker above every other
+   row and page chrome. isolation:isolate keeps the stacking context
+   self-contained so nothing else can leak above it. */
+.folder-swatch-picker[open] {
+  z-index: 9999;
+  isolation: isolate;
+}
+/* And make sure no ancestor clips the popover. */
+.folder-row-wrap { overflow: visible; }
+.folders-section, .deck-list { overflow: visible; }
 .folder-swatch-picker > summary { list-style: none; }
 .folder-swatch-picker > summary::-webkit-details-marker { display: none; }
 
@@ -280,7 +290,7 @@ a.folder-row:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
 .folder-swatch-picker[open] > summary { outline: 2px solid #4c8bf5; outline-offset: 2px; }
 
 .folder-swatch-popover {
-  position: absolute; top: calc(100% + .4rem); left: 0; z-index: 20;
+  position: absolute; top: calc(100% + .4rem); left: 0; z-index: 9999;
   background: Canvas;
   border: 1px solid #8886; border-radius: .5rem;
   padding: .6rem;
