@@ -56,6 +56,29 @@ def _inject_asset_version():
         "unfiled_swatch": UNFILED_SWATCH,
     }
 
+
+@app.context_processor
+def _inject_sidebar_folders():
+    """Top-3 most recently opened folders for the sidebar.
+
+    'Recently opened' is defined as the max(deck.last_opened_at) of
+    decks in that folder. Folders with no opened decks are excluded.
+    Unfiled is intentionally omitted. Only runs for authenticated
+    requests."""
+    if not current_user.is_authenticated:
+        return {}
+    rows = (
+        db.session.query(Folder, func.max(Deck.last_opened_at).label("last_opened"))
+        .join(Deck, Deck.folder_id == Folder.id)
+        .filter(Folder.user_id == current_user.id)
+        .filter(Deck.last_opened_at.isnot(None))
+        .group_by(Folder.id)
+        .order_by(func.max(Deck.last_opened_at).desc())
+        .limit(3)
+        .all()
+    )
+    return {"sidebar_folders": [f for (f, _) in rows]}
+
 _secret_file = INSTANCE_DIR / "secret_key"
 if not _secret_file.exists():
     _secret_file.write_bytes(secrets.token_bytes(32))

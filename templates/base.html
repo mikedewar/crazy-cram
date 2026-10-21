@@ -18,6 +18,13 @@
         <path d="M5 10.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9.5"/>
       </svg>
     </a>
+    {% for f in sidebar_folders or [] %}
+    <a class="sidebar-folder"
+       href="{{ url_for('folder_detail', folder_id=f.id) }}"
+       style="background-color: {{ f.color or unfiled_swatch }};"
+       title="{{ f.name }}"
+       aria-label="Open folder {{ f.name }}">{{ (f.name|trim)[:1]|upper }}</a>
+    {% endfor %}
     <a class="sidebar-btn" href="https://github.com/mikedewar/crazy-cram"
        target="_blank" rel="noopener noreferrer" aria-label="View source on GitHub">
       <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">

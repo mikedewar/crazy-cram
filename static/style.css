@@ -42,7 +42,22 @@ a { color: #4c8bf5; }
 }
 .sidebar-btn:hover { background: #8883; border-color: #8886; }
 .sidebar-btn svg { display: block; }
-.sidebar-btn + .sidebar-btn { margin-top: auto; }
+/* GitHub button sits at the bottom of the sidebar. */
+.sidebar > .sidebar-btn:last-child { margin-top: auto; }
+
+/* Recently-opened folder tiles in the sidebar — stacked below Home. */
+.sidebar-folder {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; border-radius: .4rem;
+  color: #222; text-decoration: none;
+  font-family: 'Saira', sans-serif;
+  font-weight: 700; font-size: 1.15rem; line-height: 1;
+  border: 1px solid #0003;
+  box-shadow: 0 1px 2px #0001;
+  transition: transform .1s;
+}
+.sidebar-folder:hover { transform: scale(1.05); }
+.sidebar-folder:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 2px; }
 
 main { max-width: 40rem; }
 
