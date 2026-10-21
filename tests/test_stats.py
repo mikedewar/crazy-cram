@@ -131,11 +131,12 @@ def test_folder_table_rendered_with_sessions_in_order(client, invite, app):
     i_old = body.index("2026-02-01")
     i_new = body.index("2026-02-03")
     assert i_old < i_new
-    # Deck colour #ff8800 under the high-contrast formula:
-    #   bright = colour * 0.75    -> round(255,136,0 * 0.75) = (191,102,0) = #bf6600
-    #   dull   = colour*0.15 + 0xe8*0.85 -> (235,218,197) = #ebdac5
-    assert "#bf6600" in body
-    assert "#ebdac5" in body
+    # Donut colours are now deck-independent: green for right, red for
+    # wrong (same hues used on the end-of-session results page).
+    assert "#4a9d5f" in body  # right / green
+    assert "#c3413a" in body  # wrong / red
+    # Deck colour still appears -- as the row-header swatch.
+    assert "#ff8800" in body
 
 
 def test_partial_sessions_ignored(client, invite, app):

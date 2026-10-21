@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.8.2 — 2026-10-21
+
+**Donuts switch to green/red.** Correct slice is now `#4a9d5f` (the
+same green the end-of-session results page uses on `.result-row.right`)
+and incorrect is `#c3413a` (same red as `.result-row.wrong`). "Right =
+green, wrong = red" is now one visual language across the app.
+
+Deck colour still identifies the row — it stays on the swatch next to
+the deck name.
+
 ## v1.8.1 — 2026-10-21
 
 **Stats page polish.** Deck-name row headers were laid out as `display:

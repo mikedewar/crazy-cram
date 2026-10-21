@@ -1729,41 +1729,12 @@ def health():
 # incorrect+skipped in a dulled shade. Partial (unfinished) sessions
 # are ignored. Admins see only their own stats, same as any user.
 
-def _bright_dull(hex_color):
-    """Return (bright, dull) shades for a #rrggbb[aa] deck colour.
-
-    'Bright' is a deepened/saturated version of the deck colour so it
-    jumps forward against the dull slice. 'Dull' is pulled hard toward
-    light grey (barely tinted by the deck hue) so correct vs incorrect
-    read at a glance even on a small donut. Deck colour can be None
-    (no colour chosen) -- fall back to neutral greys.
-    """
-    if not hex_color:
-        return ("#333333", "#e5e5e5")
-    s = hex_color.lstrip("#")
-    if len(s) < 6:
-        return ("#333333", "#e5e5e5")
-    try:
-        r = int(s[0:2], 16); g = int(s[2:4], 16); b = int(s[4:6], 16)
-    except ValueError:
-        return ("#333333", "#e5e5e5")
-
-    # Bright: deepen by pulling 25% toward black. Keeps hue, drops
-    # luminance so pastel deck colours still contrast against the dull.
-    br = round(r * 0.75)
-    bg = round(g * 0.75)
-    bb = round(b * 0.75)
-
-    # Dull: 85% toward a light neutral grey (#e8e8e8). The 15% deck
-    # hue is just enough to say "yes this slice belongs to this deck",
-    # without competing with the bright slice.
-    dr = round(r * 0.15 + 0xe8 * 0.85)
-    dg = round(g * 0.15 + 0xe8 * 0.85)
-    db_ = round(b * 0.15 + 0xe8 * 0.85)
-
-    bright = f"#{br:02x}{bg:02x}{bb:02x}"
-    dull = f"#{dr:02x}{dg:02x}{db_:02x}"
-    return (bright, dull)
+# Donut colours — intentionally the same hues used on the end-of-session
+# results page (.result-row.right / .result-row.wrong border-left-color
+# in style.css), so "right = green, wrong = red" is one consistent
+# visual language across the app.
+STATS_RIGHT_COLOR = "#4a9d5f"
+STATS_WRONG_COLOR = "#c3413a"
 
 
 def _session_right_wrong(s):
@@ -1805,7 +1776,6 @@ def stats():
         sessions_by_deck.setdefault(s.deck_id, []).append(s)
 
     def _deck_row(deck):
-        bright, dull = _bright_dull(deck.color)
         cells = []
         for s in sessions_by_deck.get(deck.id, []):
             right, wrong = _session_right_wrong(s)
@@ -1818,8 +1788,8 @@ def stats():
             })
         return {
             "deck": deck,
-            "bright": bright,
-            "dull": dull,
+            "right_color": STATS_RIGHT_COLOR,
+            "wrong_color": STATS_WRONG_COLOR,
             "cells": cells,
         }
 

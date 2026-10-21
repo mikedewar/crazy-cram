@@ -26,20 +26,16 @@
       <tr>
         <th scope="row" class="stats-deck-name">
           <span class="stats-deck-name-inner">
-            <span class="stats-deck-swatch" style="background-color: {{ row.bright }};" aria-hidden="true"></span>
+            <span class="stats-deck-swatch" style="background-color: {{ row.deck.color or '#999' }};" aria-hidden="true"></span>
             {{ row.deck.name }}
           </span>
         </th>
         {% for cell in row.cells %}
-          {# Donut: half-circumference r=14 -> C = 2*pi*14 ≈ 87.9646.
-             Stroke-dasharray splits the ring into correct (bright) + incorrect (dull).
-             If total==0 we render a single dull ring. #}
+          {# Donut: circumference r=14 -> C = 2*pi*14 ≈ 87.9646.
+             stroke-dasharray splits the ring into correct (green) + incorrect (red).
+             Session always has >=1 attempt (unfinished sessions were filtered out). #}
           {% set C = 87.9646 %}
-          {% if cell.total > 0 %}
-            {% set right_frac = cell.right / cell.total %}
-          {% else %}
-            {% set right_frac = 0 %}
-          {% endif %}
+          {% set right_frac = cell.right / cell.total %}
           {% set right_len = (right_frac * C) %}
           {% set wrong_len = (C - right_len) %}
           <td class="stats-cell">
@@ -47,13 +43,13 @@
                  role="img"
                  aria-label="{{ cell.right }} correct, {{ cell.wrong }} wrong on {{ cell.finished_at.strftime('%Y-%m-%d %H:%M') }}">
               <title>{{ cell.right }} / {{ cell.total }} on {{ cell.finished_at.strftime('%Y-%m-%d %H:%M') }} ({{ cell.mode }})</title>
-              <!-- dull base ring = incorrect -->
+              <!-- red base ring = incorrect -->
               <circle cx="18" cy="18" r="14" fill="none"
-                      stroke="{{ row.dull }}" stroke-width="6"/>
-              <!-- bright arc = correct, starts at 12 o'clock -->
+                      stroke="{{ row.wrong_color }}" stroke-width="6"/>
+              <!-- green arc = correct, starts at 12 o'clock -->
               {% if cell.right > 0 %}
               <circle cx="18" cy="18" r="14" fill="none"
-                      stroke="{{ row.bright }}" stroke-width="6"
+                      stroke="{{ row.right_color }}" stroke-width="6"
                       stroke-dasharray="{{ '%.3f'|format(right_len) }} {{ '%.3f'|format(wrong_len) }}"
                       stroke-dashoffset="0"
                       transform="rotate(-90 18 18)"/>
