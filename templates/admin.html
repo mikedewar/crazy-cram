@@ -7,4 +7,34 @@
     <a class="btn-secondary" href="{{ url_for('home') }}">← All decks</a>
   </div>
 </div>
+
+<section class="account-panel">
+  <h2>Users &amp; invite tokens</h2>
+  {% if user_rows %}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Invite token</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in user_rows %}
+      <tr>
+        <td>{{ row.username }}</td>
+        <td>
+          {% if row.invite_code %}
+          <code>{{ row.invite_code }}</code>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No users yet.</p>
+  {% endif %}
+</section>
 {% endblock %}

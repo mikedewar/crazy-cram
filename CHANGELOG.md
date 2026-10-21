@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.7.1 — 2026-10-21
+
+**Admin page shows users and their invite tokens.** `/admin` now has
+a two-column table (username, invite token) — the token column is the
+`invite_code.code` that was redeemed to create the account. Users with
+no redeemed invite (shouldn't happen, but handle it) show an em dash.
+
 ## v1.7.0 — 2026-10-21
 
 **Admin role.** The admin gate is now a `User.is_admin` boolean rather

@@ -8,7 +8,7 @@ def _register(client, invite, username="alice", password="correct-horse-1"):
         "submit": "Create account",
     }, follow_redirects=False)
     assert r.status_code == 302
-    return username
+    return username, code
 
 
 def _make_admin(app, username):
@@ -41,6 +41,19 @@ def test_admin_visible_to_admin_user(client, invite, app):
     r = client.get("/admin")
     assert r.status_code == 200
     assert b"Admin" in r.data
+
+
+def test_admin_shows_users_and_their_invites(client, invite, app):
+    _, bob_code = _register(client, invite, "bob")
+    client.post("/logout", data={})
+    _, alice_code = _register(client, invite, "alice")
+    _make_admin(app, "alice")
+    r = client.get("/admin")
+    assert r.status_code == 200
+    assert b"bob" in r.data
+    assert b"alice" in r.data
+    assert bob_code.encode() in r.data
+    assert alice_code.encode() in r.data
 
 
 def test_admin_overview_lists_other_users_and_invites(client, invite, app):

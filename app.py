@@ -1733,7 +1733,17 @@ def _require_admin():
 @login_required
 def admin():
     _require_admin()
-    return render_template("admin.html")
+
+    users = User.query.order_by(User.created_at.asc()).all()
+    invite_by_user = {
+        iv.used_by: iv.code
+        for iv in InviteCode.query.filter(InviteCode.used_by.isnot(None)).all()
+    }
+    user_rows = [
+        {"username": u.username, "invite_code": invite_by_user.get(u.id)}
+        for u in users
+    ]
+    return render_template("admin.html", user_rows=user_rows)
 
 
 @app.route("/admin/overview")
