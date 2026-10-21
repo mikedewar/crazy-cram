@@ -216,9 +216,18 @@ def random_deck_color():
     return secrets.choice(DECK_PALETTE)
 
 
-def random_folder_color():
+def random_folder_color(user_id=None):
     import secrets
-    return secrets.choice(FOLDER_PALETTE)
+    if user_id is None:
+        return secrets.choice(FOLDER_PALETTE)
+    used = {
+        c for (c,) in db.session.query(Folder.color)
+        .filter(Folder.user_id == user_id, Folder.color.isnot(None))
+        .all()
+    }
+    unused = [c for c in FOLDER_PALETTE if c not in used]
+    pool = unused if unused else FOLDER_PALETTE
+    return secrets.choice(pool)
 
 
 class Folder(db.Model):
@@ -689,7 +698,7 @@ def deck_delete(deck_id):
 def folder_new():
     form = FolderForm()
     if form.validate_on_submit():
-        folder = Folder(user_id=current_user.id, name=form.name.data, color=random_folder_color())
+        folder = Folder(user_id=current_user.id, name=form.name.data, color=random_folder_color(current_user.id))
         db.session.add(folder)
         db.session.commit()
         flash(f"Folder “{folder.name}” created.", "info")
@@ -702,7 +711,7 @@ def folder_new():
 def folder_list():
     form = FolderForm()
     if form.validate_on_submit():
-        folder = Folder(user_id=current_user.id, name=form.name.data, color=random_folder_color())
+        folder = Folder(user_id=current_user.id, name=form.name.data, color=random_folder_color(current_user.id))
         db.session.add(folder)
         db.session.commit()
         flash(f"Folder “{folder.name}” created.", "info")
