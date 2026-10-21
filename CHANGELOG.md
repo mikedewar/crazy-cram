@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.4 — 2026-10-21
+
+**Admin table gains last-login, folder-count and deck-count columns.**
+`/admin` now shows three more columns per user: last login time, number
+of folders, number of decks. A new nullable `user.last_login_at`
+column (migration 0010) is stamped on every successful password check.
+Pre-existing users show `—` for last login until they next sign in.
+
 ## v1.7.3 — 2026-10-21
 
 **Sidebar no longer overlaps `main` on narrow viewports.** The sidebar

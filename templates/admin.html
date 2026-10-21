@@ -16,6 +16,9 @@
       <tr>
         <th>Username</th>
         <th>Invite token</th>
+        <th>Last login</th>
+        <th class="num">Folders</th>
+        <th class="num">Decks</th>
       </tr>
     </thead>
     <tbody>
@@ -29,6 +32,15 @@
           <span class="muted">—</span>
           {% endif %}
         </td>
+        <td>
+          {% if row.last_login_at %}
+          {{ row.last_login_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td class="num">{{ row.folders }}</td>
+        <td class="num">{{ row.decks }}</td>
       </tr>
       {% endfor %}
     </tbody>

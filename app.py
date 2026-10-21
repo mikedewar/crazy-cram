@@ -158,6 +158,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_admin = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    last_login_at = db.Column(db.DateTime, nullable=True)
 
 
 class InviteCode(db.Model):
@@ -547,6 +548,8 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter(func.lower(User.username) == form.username.data.lower()).first()
         if user and bcrypt.check_password_hash(user.password_hash, form.password.data):
+            user.last_login_at = datetime.now(timezone.utc)
+            db.session.commit()
             login_user(user)
             _log_event("login_success", user_id=user.id, username=user.username)
             return redirect(url_for("home"))
@@ -1739,8 +1742,22 @@ def admin():
         iv.used_by: iv.code
         for iv in InviteCode.query.filter(InviteCode.used_by.isnot(None)).all()
     }
+    folder_counts = dict(
+        db.session.query(Folder.user_id, func.count(Folder.id))
+        .group_by(Folder.user_id).all()
+    )
+    deck_counts = dict(
+        db.session.query(Deck.user_id, func.count(Deck.id))
+        .group_by(Deck.user_id).all()
+    )
     user_rows = [
-        {"username": u.username, "invite_code": invite_by_user.get(u.id)}
+        {
+            "username": u.username,
+            "invite_code": invite_by_user.get(u.id),
+            "last_login_at": u.last_login_at,
+            "folders": folder_counts.get(u.id, 0),
+            "decks": deck_counts.get(u.id, 0),
+        }
         for u in users
     ]
     return render_template("admin.html", user_rows=user_rows)
