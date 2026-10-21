@@ -59,9 +59,9 @@ def test_create_deck_into_folder(client, invite, app):
                     follow_redirects=False)
     d = app.Deck.query.filter_by(name="French").one()
     assert d.folder_id == f.id
-    # Redirect should land on the folder detail so the user sees their new deck.
+    # Redirect should land on the new deck's cards page.
     assert r.status_code in (301, 302)
-    assert f"/folders/{f.id}" in r.headers["Location"]
+    assert f"/decks/{d.id}/cards" in r.headers["Location"]
 
 
 def test_new_deck_page_preselects_folder_from_query(client, invite, app):

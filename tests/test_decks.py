@@ -44,11 +44,12 @@ def test_create_deck_happy_path(client, invite, app):
     r = client.post("/decks/new", data={"name": "French", "submit": "Save deck"},
                     follow_redirects=False)
     assert r.status_code == 302
-    assert r.headers["Location"].endswith("/home")
 
     alice = app.User.query.filter_by(username="alice").one()
     assert app.Deck.query.filter_by(user_id=alice.id).count() == 1
-    assert app.Deck.query.first().name == "French"
+    deck = app.Deck.query.first()
+    assert deck.name == "French"
+    assert r.headers["Location"].endswith(f"/decks/{deck.id}/cards")
 
 
 def test_create_deck_requires_name(client, invite):

@@ -646,9 +646,7 @@ def deck_new():
         db.session.add(deck)
         db.session.commit()
         flash(f"Deck “{deck.name}” created.", "info")
-        if folder_id is not None:
-            return redirect(url_for("folder_detail", folder_id=folder_id))
-        return redirect(url_for("home"))
+        return redirect(url_for("deck_cards", deck_id=deck.id))
     return render_template("deck_form.html", form=form, mode="new", palette=DECK_PALETTE)
 
 
