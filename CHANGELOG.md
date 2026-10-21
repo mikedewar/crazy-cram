@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.7.3 — 2026-10-21
+
+**Sidebar no longer overlaps `main` on narrow viewports.** The sidebar
+is `position: fixed`, so `main` previously centered itself ignoring the
+sidebar and slid under it as the viewport shrank. Below 52rem, `main`
+now reserves the sidebar's column (sidebar width + gutters = 5.25rem)
+and shrinks against it instead.
+
 ## v1.7.2 — 2026-10-21
 
 **Admin sidebar icon.** For admin users only, a shield icon appears in
