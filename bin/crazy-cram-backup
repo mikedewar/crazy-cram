@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# crazy-cram-backup — nightly consistent SQLite backup with grandfather-father-son rotation.
+#
+# Uses sqlite3's `.backup` command so gunicorn keeps serving while the snapshot
+# is taken (atomic, no corruption risk from in-flight writes).
+#
+# Retention:
+#   7 daily  (daily/crazy-cram-YYYYMMDD.db)
+#   4 weekly (weekly/crazy-cram-YYYY-Www.db — taken on Sunday)
+#   3 monthly (monthly/crazy-cram-YYYYMM.db — taken on the 1st)
+#
+# Usage:
+#   crazy-cram-backup              # run normally; cron hooks this
+#   crazy-cram-backup --now        # same, verbose log line to stdout
+#   crazy-cram-backup --verify     # just integrity-check the newest daily
+#
+# Env:
+#   CRAZY_CRAM_BACKUP_DIR  destination (default: $HOME/.crazy-cram-backups)
+#   CRAZY_CRAM_DB          source DB   (default: <app>/instance/crazy-cram.db)
+#   NOTIFY_CMD             failure notifier (default: $HOME/bin/notify-mike)
+set -uo pipefail
+
+APP_DIR="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+SRC_DB="${CRAZY_CRAM_DB:-$APP_DIR/instance/crazy-cram.db}"
+DEST="${CRAZY_CRAM_BACKUP_DIR:-$HOME/.crazy-cram-backups}"
+NOTIFY="${NOTIFY_CMD:-$HOME/bin/notify-mike}"
+PY="$APP_DIR/venv/bin/python"
+
+die() {
+  echo "crazy-cram-backup: $*" >&2
+  [ -x "$NOTIFY" ] && "$NOTIFY" "crazy-cram backup FAILED: $*" >/dev/null 2>&1
+  exit 1
+}
+
+[ -x "$PY" ] || die "venv python not found at $PY"
+[ -r "$SRC_DB" ] || die "source DB not readable: $SRC_DB"
+
+mkdir -p "$DEST/daily" "$DEST/weekly" "$DEST/monthly" "$DEST/archive"
+
+# Online snapshot + integrity check via Python's sqlite3 (no CLI needed).
+# Uses the SQLite backup API — safe against concurrent writers; gunicorn
+# keeps serving. Prints "ok" to stdout, errors to stderr.
+sqlite_backup() {  # sqlite_backup <src> <dst>
+  "$PY" - "$1" "$2" <<'PY'
+import sqlite3, sys
+src, dst = sys.argv[1], sys.argv[2]
+with sqlite3.connect(src) as s, sqlite3.connect(dst) as d:
+    s.backup(d)
+    row = d.execute("PRAGMA integrity_check").fetchone()
+    if not row or row[0] != "ok":
+        print(f"integrity_check: {row}", file=sys.stderr)
+        sys.exit(1)
+print("ok")
+PY
+}
+
+sqlite_integrity() {  # sqlite_integrity <db>
+  "$PY" - "$1" <<'PY'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as c:
+    row = c.execute("PRAGMA integrity_check").fetchone()
+    print(row[0] if row else "no result")
+PY
+}
+
+# --- integrity-only mode ---------------------------------------------------
+if [ "${1:-}" = "--verify" ]; then
+  latest=$(ls -1t "$DEST/daily"/*.db 2>/dev/null | head -1)
+  [ -n "$latest" ] || die "no daily backup to verify"
+  res=$(sqlite_integrity "$latest") || die "verify failed on $latest"
+  [ "$res" = "ok" ] || die "integrity_check on $latest: $res"
+  echo "ok: $latest"
+  exit 0
+fi
+
+VERBOSE=0
+[ "${1:-}" = "--now" ] && VERBOSE=1
+
+STAMP=$(date +%Y%m%d)
+DAILY="$DEST/daily/crazy-cram-$STAMP.db"
+TMP="$DAILY.partial"
+rm -f "$TMP"
+
+if ! sqlite_backup "$SRC_DB" "$TMP" >/dev/null 2>/tmp/crazy-cram-backup.err; then
+  err=$(cat /tmp/crazy-cram-backup.err 2>/dev/null)
+  rm -f "$TMP"
+  die "snapshot failed: $err"
+fi
+
+mv -f "$TMP" "$DAILY"
+
+# --- promote to weekly on Sunday, monthly on the 1st -----------------------
+DOW=$(date +%u)  # 1=Mon..7=Sun
+DOM=$(date +%d)
+if [ "$DOW" = "7" ]; then
+  WEEKLY="$DEST/weekly/crazy-cram-$(date +%G-W%V).db"
+  cp -f "$DAILY" "$WEEKLY"
+fi
+if [ "$DOM" = "01" ]; then
+  MONTHLY="$DEST/monthly/crazy-cram-$(date +%Y%m).db"
+  cp -f "$DAILY" "$MONTHLY"
+fi
+
+# --- rotate: keep 7 daily, 4 weekly, 3 monthly -----------------------------
+prune() {  # prune <dir> <keep>
+  local dir="$1" keep="$2"
+  ls -1t "$dir"/*.db 2>/dev/null | tail -n +"$((keep + 1))" | xargs -r rm -f
+}
+prune "$DEST/daily"   7
+prune "$DEST/weekly"  4
+prune "$DEST/monthly" 3
+
+if [ "$VERBOSE" = "1" ]; then
+  size=$(stat -c%s "$DAILY")
+  echo "crazy-cram-backup: $DAILY ($size bytes)"
+fi

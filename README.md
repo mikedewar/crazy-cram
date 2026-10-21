@@ -139,8 +139,25 @@ static/style.css          # ~180 lines
 migrations/               # Alembic — forward-only chain (0001 → 0003)
 bin/crazy-cram-initdb     # runs `flask db upgrade`
 bin/crazy-cram-invite     # mint invite codes
+bin/crazy-cram-backup     # nightly SQLite snapshot (cron 03:30)
 tests/                    # pytest suite (161 tests)
 ```
+
+## Backups
+
+`bin/crazy-cram-backup` takes an online snapshot of `instance/crazy-cram.db`
+using SQLite's backup API (safe while gunicorn is serving), integrity-checks
+it, and rotates grandfather-father-son:
+
+- `daily/` — 7 kept
+- `weekly/` — 4 kept (promoted on Sunday)
+- `monthly/` — 3 kept (promoted on the 1st)
+
+Destination: `$CRAZY_CRAM_BACKUP_DIR` (default `~/.crazy-cram-backups`).
+Scheduled nightly at 03:30 via user crontab; log at `~/.diane/crazy-cram-backup.log`.
+Failures notify via `$NOTIFY_CMD` (default `~/bin/notify-mike`).
+
+Verify newest snapshot: `bin/crazy-cram-backup --verify`.
 
 ## Licence
 
