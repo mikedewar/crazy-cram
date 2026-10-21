@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.8.3 — 2026-10-21
+
+**More breathing room between rows on `/stats`.** Table cells go from
+`0 .35rem` to `.35rem .35rem` so each row of donuts gets its own
+vertical gutter.
+
 ## v1.8.2 — 2026-10-21
 
 **Donuts switch to green/red.** Correct slice is now `#4a9d5f` (the
