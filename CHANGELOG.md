@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.7.0 — 2026-10-21
+
+**Admin role.** The admin gate is now a `User.is_admin` boolean rather
+than a hard-coded username env var.
+
+- New column `user.is_admin` (bool, default false). Migration
+  `0009_user_is_admin` adds it, wrapped in `_fks_off()`, and promotes
+  the bootstrap admin (`CRAZY_CRAM_BOOTSTRAP_ADMIN`, default
+  `mikedewar`) to admin on upgrade.
+- `/admin` is now a blank page (just a page header and a back link);
+  the previous dashboard moved to `/admin/overview`.
+- `_require_admin()` checks `current_user.is_admin`; non-admins still
+  get 404 (unchanged UX).
+- Removed `ADMIN_USERNAME` module global.
+
 ## v1.6.0 — 2026-10-21
 
 **Folder colours.** Each folder now has its own colour, shown as a small

@@ -157,6 +157,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(32), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    is_admin = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
 
 
 class InviteCode(db.Model):
@@ -1721,21 +1722,23 @@ def health():
 
 
 # --- Admin -----------------------------------------------------------
-# Read-only overview for the site owner. Gated by username, not a role
-# column — fewer moving parts, no schema change. If the owner ever
-# changes, swap the env var.
-
-ADMIN_USERNAME = os.environ.get("CRAZY_CRAM_ADMIN_USERNAME", "mikedewar")
-
+# Gated by User.is_admin. Bootstrap admin is set in migration 0009.
 
 def _require_admin():
-    if not current_user.is_authenticated or current_user.username != ADMIN_USERNAME:
+    if not current_user.is_authenticated or not current_user.is_admin:
         abort(404)
 
 
 @app.route("/admin")
 @login_required
 def admin():
+    _require_admin()
+    return render_template("admin.html")
+
+
+@app.route("/admin/overview")
+@login_required
+def admin_overview():
     _require_admin()
 
     users = User.query.order_by(User.created_at.asc()).all()
@@ -1794,7 +1797,7 @@ def admin():
     }
 
     return render_template(
-        "admin.html",
+        "admin_overview.html",
         user_rows=user_rows,
         invite_rows=invite_rows,
         stats=stats,
