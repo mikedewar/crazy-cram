@@ -45,6 +45,10 @@ a { color: #4c8bf5; }
 /* GitHub button sits at the bottom of the sidebar. */
 .sidebar > .sidebar-btn:last-child { margin-top: auto; }
 
+/* Admin icon (admins only) hugs the GitHub button at the bottom. */
+.sidebar > .sidebar-admin { margin-top: auto; }
+.sidebar > .sidebar-admin ~ .sidebar-btn:last-child { margin-top: 0; }
+
 /* Recently-opened folder tiles in the sidebar — stacked below Home. */
 .sidebar-folder {
   display: inline-flex; align-items: center; justify-content: center;

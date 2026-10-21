@@ -25,6 +25,14 @@
        title="{{ f.name }}"
        aria-label="Open folder {{ f.name }}">{{ (f.name|trim)[:1]|upper }}</a>
     {% endfor %}
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <a class="sidebar-btn sidebar-admin" href="{{ url_for('admin') }}" aria-label="Admin">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/>
+      </svg>
+    </a>
+    {% endif %}
     <a class="sidebar-btn" href="https://github.com/mikedewar/crazy-cram"
        target="_blank" rel="noopener noreferrer" aria-label="View source on GitHub">
       <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">

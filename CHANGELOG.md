@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.7.2 — 2026-10-21
+
+**Admin sidebar icon.** For admin users only, a shield icon appears in
+the sidebar directly above the GitHub button and links to `/admin`.
+Rendered in `base.html` so it's present on every page. Non-admin users
+and anonymous visitors never see it.
+
 ## v1.7.1 — 2026-10-21
 
 **Admin page shows users and their invite tokens.** `/admin` now has
