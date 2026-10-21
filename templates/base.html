@@ -25,6 +25,17 @@
        title="{{ f.name }}"
        aria-label="Open folder {{ f.name }}">{{ (f.name|trim)[:1]|upper }}</a>
     {% endfor %}
+    {% if current_user.is_authenticated %}
+    <a class="sidebar-btn sidebar-stats" href="{{ url_for('stats') }}" aria-label="Stats">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/>
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 3 v5"/>
+        <path d="M20.5 15.5 L15.6 13.5"/>
+      </svg>
+    </a>
+    {% endif %}
     {% if current_user.is_authenticated and current_user.is_admin %}
     <a class="sidebar-btn sidebar-admin" href="{{ url_for('admin') }}" aria-label="Admin">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"

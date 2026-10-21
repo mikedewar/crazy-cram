@@ -56,6 +56,11 @@ a { color: #4c8bf5; }
 .sidebar > .sidebar-admin { margin-top: auto; }
 .sidebar > .sidebar-admin ~ .sidebar-btn:last-child { margin-top: 0; }
 
+/* Stats icon lives at the top of the bottom cluster — above admin
+   (for admins) and above GitHub (for everyone). */
+.sidebar > .sidebar-stats { margin-top: auto; }
+.sidebar > .sidebar-stats ~ .sidebar-btn { margin-top: 0; }
+
 /* Recently-opened folder tiles in the sidebar — stacked below Home. */
 .sidebar-folder {
   display: inline-flex; align-items: center; justify-content: center;
@@ -669,3 +674,33 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 .learn-most-missed h2 { margin-bottom: .25rem; }
 
 .learn-section-5 { margin-top: 2rem; }
+
+/* --- Stats page --------------------------------------------------- */
+
+.stats-group { margin: 1.25rem 0 2rem; }
+.stats-folder-name {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: 1.1rem; margin: 0 0 .5rem;
+}
+.stats-folder-swatch {
+  display: inline-block; width: .9rem; height: .9rem;
+  border-radius: .2rem; border: 1px solid #0002;
+}
+.stats-table { border-collapse: collapse; font-size: .9rem; }
+.stats-table th, .stats-table td {
+  padding: .2rem .35rem;
+  vertical-align: middle;
+}
+.stats-deck-name {
+  display: flex; align-items: center; gap: .4rem;
+  text-align: left; font-weight: 500;
+  padding-right: .9rem;
+  white-space: nowrap;
+}
+.stats-deck-swatch {
+  display: inline-block; width: .75rem; height: .75rem;
+  border-radius: 50%; border: 1px solid #0002;
+  flex: 0 0 auto;
+}
+.stats-cell { padding: .1rem .15rem; }
+.stats-donut { display: block; }

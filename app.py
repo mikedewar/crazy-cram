@@ -1722,6 +1722,127 @@ def health():
     return jsonify(status="ok", version=VERSION, db="ok"), 200
 
 
+# --- Stats -----------------------------------------------------------
+# Per-user small-multiples: one table per folder, one row per deck,
+# one column per completed study session, oldest -> newest. Each cell
+# is a tiny donut: correct in a bright shade of the deck colour,
+# incorrect+skipped in a dulled shade. Partial (unfinished) sessions
+# are ignored. Admins see only their own stats, same as any user.
+
+def _bright_dull(hex_color):
+    """Return (bright, dull) shades for a #rrggbb[aa] deck colour.
+
+    'Bright' is the colour itself. 'Dull' blends it ~65% toward the page
+    background so it still reads as the deck's hue but recedes. Deck
+    colour can be None (no colour chosen) -- fall back to neutral greys.
+    """
+    if not hex_color:
+        return ("#999999", "#dddddd")
+    s = hex_color.lstrip("#")
+    if len(s) < 6:
+        return ("#999999", "#dddddd")
+    try:
+        r = int(s[0:2], 16); g = int(s[2:4], 16); b = int(s[4:6], 16)
+    except ValueError:
+        return ("#999999", "#dddddd")
+    # Blend toward white to desaturate: 35% colour + 65% white.
+    dr = round(r * 0.35 + 255 * 0.65)
+    dg = round(g * 0.35 + 255 * 0.65)
+    db_ = round(b * 0.35 + 255 * 0.65)
+    bright = f"#{r:02x}{g:02x}{b:02x}"
+    dull = f"#{dr:02x}{dg:02x}{db_:02x}"
+    return (bright, dull)
+
+
+def _session_right_wrong(s):
+    """Count correct vs incorrect for a finished session.
+
+    - Non-learn modes: every attempt in the session. is_correct=False or
+      is_correct=None (skipped) both count as wrong.
+    - Learn mode: the final run-through only (section == LEARN_TOTAL_SECTIONS).
+    """
+    q = StudyAttempt.query.filter(StudyAttempt.session_id == s.id)
+    if s.mode == "learn":
+        q = q.filter(StudyAttempt.section == LEARN_TOTAL_SECTIONS)
+    attempts = q.all()
+    right = sum(1 for a in attempts if a.is_correct is True)
+    wrong = sum(1 for a in attempts if a.is_correct is not True)
+    return right, wrong
+
+
+@app.route("/stats")
+@login_required
+def stats():
+    # All of this user's folders, in alphabetical order. Unfiled gets
+    # its own pseudo-group at the end.
+    folders = (
+        Folder.query.filter_by(user_id=current_user.id)
+        .order_by(func.lower(Folder.name).asc(), Folder.id.asc())
+        .all()
+    )
+    # All of this user's finished sessions, oldest -> newest.
+    sessions = (
+        StudySession.query
+        .filter(StudySession.user_id == current_user.id)
+        .filter(StudySession.finished_at.isnot(None))
+        .order_by(StudySession.finished_at.asc(), StudySession.id.asc())
+        .all()
+    )
+    sessions_by_deck = {}
+    for s in sessions:
+        sessions_by_deck.setdefault(s.deck_id, []).append(s)
+
+    def _deck_row(deck):
+        bright, dull = _bright_dull(deck.color)
+        cells = []
+        for s in sessions_by_deck.get(deck.id, []):
+            right, wrong = _session_right_wrong(s)
+            cells.append({
+                "right": right,
+                "wrong": wrong,
+                "total": right + wrong,
+                "finished_at": s.finished_at,
+                "mode": s.mode,
+            })
+        return {
+            "deck": deck,
+            "bright": bright,
+            "dull": dull,
+            "cells": cells,
+        }
+
+    def _folder_group(folder, decks):
+        rows = [_deck_row(d) for d in decks if sessions_by_deck.get(d.id)]
+        max_cols = max((len(r["cells"]) for r in rows), default=0)
+        return {
+            "folder": folder,
+            "rows": rows,
+            "max_cols": max_cols,
+        }
+
+    groups = []
+    for f in folders:
+        decks = (
+            Deck.query.filter_by(user_id=current_user.id, folder_id=f.id)
+            .order_by(func.lower(Deck.name).asc(), Deck.id.asc())
+            .all()
+        )
+        g = _folder_group(f, decks)
+        if g["rows"]:
+            groups.append(g)
+
+    unfiled_decks = (
+        Deck.query.filter_by(user_id=current_user.id, folder_id=None)
+        .order_by(func.lower(Deck.name).asc(), Deck.id.asc())
+        .all()
+    )
+    unfiled_group = _folder_group(None, unfiled_decks)
+    if unfiled_group["rows"]:
+        groups.append(unfiled_group)
+
+    return render_template("stats.html", groups=groups)
+
+
 # --- Admin -----------------------------------------------------------
 # Gated by User.is_admin. Bootstrap admin is set in migration 0009.
 

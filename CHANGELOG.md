@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.8.0 — 2026-10-21
+
+**Stats page: small-multiples of every finished study session.** New
+`/stats` route, one table per folder, one row per deck, one column per
+completed session (oldest → newest, ragged right — a deck's row is
+only as long as its session history). Each cell is a tiny donut:
+correct answers in a bright shade of the deck colour, incorrect +
+skipped in a dulled shade. Partial (unfinished) sessions are ignored.
+Learn-mode sessions use the final run-through (§5) only, so a Learn
+donut summarises how well you ended up, not how many times you
+scrambled on the way there. A donut icon in the sidebar links to it —
+above the GitHub button for everyone, above the admin shield for
+admins. Admins see only their own stats; `/stats` is per-user.
+
+No schema change — reuses the existing `StudySession` and
+`StudyAttempt` tables already created by migrations 0006/0007.
+
 ## v1.7.4 — 2026-10-21
 
 **Admin table gains last-login, folder-count and deck-count columns.**

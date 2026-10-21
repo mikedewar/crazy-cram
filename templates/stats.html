@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Stats · Crazy-Cram{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Stats</h1>
+</div>
+
+{% if not groups %}
+<p class="muted">No finished study sessions yet. Finish a run through a deck and it'll show up here.</p>
+{% endif %}
+
+{% for g in groups %}
+<section class="stats-group">
+  <h2 class="stats-folder-name">
+    {% if g.folder %}
+      <span class="stats-folder-swatch" style="background-color: {{ g.folder.color or '#999' }};" aria-hidden="true"></span>
+      {{ g.folder.name }}
+    {% else %}
+      Unfiled
+    {% endif %}
+  </h2>
+  <table class="stats-table">
+    <tbody>
+    {% for row in g.rows %}
+      <tr>
+        <th scope="row" class="stats-deck-name">
+          <span class="stats-deck-swatch" style="background-color: {{ row.bright }};" aria-hidden="true"></span>
+          {{ row.deck.name }}
+        </th>
+        {% for cell in row.cells %}
+          {# Donut: half-circumference r=14 -> C = 2*pi*14 ≈ 87.9646.
+             Stroke-dasharray splits the ring into correct (bright) + incorrect (dull).
+             If total==0 we render a single dull ring. #}
+          {% set C = 87.9646 %}
+          {% if cell.total > 0 %}
+            {% set right_frac = cell.right / cell.total %}
+          {% else %}
+            {% set right_frac = 0 %}
+          {% endif %}
+          {% set right_len = (right_frac * C) %}
+          {% set wrong_len = (C - right_len) %}
+          <td class="stats-cell">
+            <svg class="stats-donut" viewBox="0 0 36 36" width="40" height="40"
+                 role="img"
+                 aria-label="{{ cell.right }} correct, {{ cell.wrong }} wrong on {{ cell.finished_at.strftime('%Y-%m-%d %H:%M') }}">
+              <title>{{ cell.right }} / {{ cell.total }} on {{ cell.finished_at.strftime('%Y-%m-%d %H:%M') }} ({{ cell.mode }})</title>
+              <!-- dull base ring = incorrect -->
+              <circle cx="18" cy="18" r="14" fill="none"
+                      stroke="{{ row.dull }}" stroke-width="6"/>
+              <!-- bright arc = correct, starts at 12 o'clock -->
+              {% if cell.right > 0 %}
+              <circle cx="18" cy="18" r="14" fill="none"
+                      stroke="{{ row.bright }}" stroke-width="6"
+                      stroke-dasharray="{{ '%.3f'|format(right_len) }} {{ '%.3f'|format(wrong_len) }}"
+                      stroke-dashoffset="0"
+                      transform="rotate(-90 18 18)"/>
+              {% endif %}
+            </svg>
+          </td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endfor %}
+{% endblock %}
