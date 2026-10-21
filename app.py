@@ -50,7 +50,11 @@ _ASSET_VERSION = f"{VERSION}-{int(_STYLE_FILE.stat().st_mtime)}" if _STYLE_FILE.
 
 @app.context_processor
 def _inject_asset_version():
-    return {"asset_version": _ASSET_VERSION}
+    return {
+        "asset_version": _ASSET_VERSION,
+        "folder_palette": FOLDER_PALETTE,
+        "unfiled_swatch": UNFILED_SWATCH,
+    }
 
 _secret_file = INSTANCE_DIR / "secret_key"
 if not _secret_file.exists():
@@ -168,10 +172,30 @@ DECK_PALETTE = [
     "#e8dfd0",  # sand
 ]
 
+FOLDER_PALETTE = [
+    "#e63946",  # crimson
+    "#f3722c",  # orange
+    "#f9c74f",  # amber
+    "#43aa8b",  # teal
+    "#2a9d8f",  # emerald
+    "#277da1",  # ocean
+    "#4361ee",  # cobalt
+    "#7b2cbf",  # violet
+    "#c71585",  # magenta
+    "#6a994e",  # moss
+]
+
+UNFILED_SWATCH = "#8a8a8a"
+
 
 def random_deck_color():
     import secrets
     return secrets.choice(DECK_PALETTE)
+
+
+def random_folder_color():
+    import secrets
+    return secrets.choice(FOLDER_PALETTE)
 
 
 class Folder(db.Model):
@@ -182,6 +206,7 @@ class Folder(db.Model):
     )
     name = db.Column(db.String(FOLDER_NAME_MAX), nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    color = db.Column(db.String(9), nullable=True)
 
     __table_args__ = (
         db.UniqueConstraint("user_id", "name", name="uq_folder_user_id_name"),
@@ -641,7 +666,7 @@ def deck_delete(deck_id):
 def folder_new():
     form = FolderForm()
     if form.validate_on_submit():
-        folder = Folder(user_id=current_user.id, name=form.name.data)
+        folder = Folder(user_id=current_user.id, name=form.name.data, color=random_folder_color())
         db.session.add(folder)
         db.session.commit()
         flash(f"Folder “{folder.name}” created.", "info")
@@ -654,7 +679,7 @@ def folder_new():
 def folder_list():
     form = FolderForm()
     if form.validate_on_submit():
-        folder = Folder(user_id=current_user.id, name=form.name.data)
+        folder = Folder(user_id=current_user.id, name=form.name.data, color=random_folder_color())
         db.session.add(folder)
         db.session.commit()
         flash(f"Folder “{folder.name}” created.", "info")
@@ -720,6 +745,21 @@ def folder_rename(folder_id):
     else:
         for e in form.name.errors:
             flash(e, "error")
+    return redirect(url_for("folder_list"))
+
+
+@app.route("/folders/<int:folder_id>/color", methods=["POST"])
+@login_required
+def folder_set_color(folder_id):
+    folder = _owned_folder_or_404(folder_id)
+    chosen = (request.form.get("color") or "").strip()
+    if chosen not in FOLDER_PALETTE:
+        abort(400)
+    folder.color = chosen
+    db.session.commit()
+    next_url = request.form.get("next")
+    if next_url == "home":
+        return redirect(url_for("home"))
     return redirect(url_for("folder_list"))
 
 

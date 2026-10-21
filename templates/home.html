@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "folders/_swatch.html" import folder_swatch with context %}
 {% block title %}Your decks — Crazy-Cram{% endblock %}
 {% block content %}
 <div class="brand-head">
@@ -20,7 +21,8 @@
     <h2>Folders</h2>
   </div>
   <ul class="deck-list">
-    <li>
+    <li class="folder-row-wrap">
+      {{ folder_swatch(none, "home") }}
       <a class="deck-row folder-row" href="{{ url_for('folder_unfiled') }}">
         <span class="deck-info">
           <span class="deck-name">Unfiled</span>
@@ -30,7 +32,8 @@
       </a>
     </li>
     {% for row in folders %}
-    <li>
+    <li class="folder-row-wrap">
+      {{ folder_swatch(row.folder, "home") }}
       <a class="deck-row folder-row" href="{{ url_for('folder_detail', folder_id=row.folder.id) }}">
         <span class="deck-info">
           <span class="deck-name">{{ row.folder.name }}</span>

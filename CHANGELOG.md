@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.6.0 — 2026-10-21
+
+**Folder colours.** Each folder now has its own colour, shown as a small
+coloured square to the left of the folder name on the home page and the
+folders list page.
+
+- New `FOLDER_PALETTE` of 10 vibrant hues (crimson, orange, amber, teal,
+  emerald, ocean, cobalt, violet, magenta, moss) — distinct from the
+  pastel deck palette.
+- Random colour assigned when a folder is created.
+- Click the swatch to open a palette picker and recolour the folder;
+  posts to `/folders/<id>/color`. Non-palette values are rejected (400).
+- The Unfiled pseudo-folder gets a neutral grey swatch (not pickable).
+- Migration `0008_folder_color` adds a nullable `folder.color` string(9)
+  column and backfills existing rows with random palette picks. Wrapped
+  in `_fks_off()` per the SQLite batch FK trap.
+- CSS: a `.folder-swatch` square (1.4rem) in a `<details>` popover, with
+  dark-mode canvas colour for the popover.
+
 ## v1.5.0 — 2026-10-19
 
 **Learn study mode.** A new guided 5-section study progression,

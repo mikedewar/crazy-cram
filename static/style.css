@@ -222,9 +222,52 @@ a.folder-row:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; opacity: 0;
 }
-.swatch:has(input:checked) { border-color: #333; }
-.swatch:has(input:checked) .swatch-check { opacity: 1; }
-.swatch:focus-within { outline: 2px solid #4c8bf5; outline-offset: 2px; }
+.swatch:has(input:checked), .swatch.swatch-selected { border-color: #333; }
+.swatch:has(input:checked) .swatch-check,
+.swatch.swatch-selected .swatch-check { opacity: 1; }
+.swatch:focus-within, .swatch:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 2px; }
+
+/* Folder rows: swatch sits beside the row anchor as a flex sibling. */
+.folder-row-wrap {
+  display: flex; align-items: stretch; gap: .6rem;
+  margin-bottom: .5rem;
+}
+.folder-row-wrap > .deck-row, .folder-row-wrap > .folder-row {
+  flex: 1 1 auto; margin-bottom: 0;
+}
+.folder-row-wrap.deck-row-wrap { position: relative; }
+
+.folder-swatch-picker { position: relative; }
+.folder-swatch-picker > summary { list-style: none; }
+.folder-swatch-picker > summary::-webkit-details-marker { display: none; }
+
+.folder-swatch {
+  display: inline-block; align-self: center;
+  width: 1.4rem; height: 1.4rem;
+  border-radius: .3rem;
+  border: 1px solid #0003;
+  box-shadow: 0 1px 2px #0001;
+  cursor: pointer;
+}
+.folder-swatch-static { cursor: default; }
+.folder-swatch-picker > summary:focus-visible {
+  outline: 2px solid #4c8bf5; outline-offset: 2px;
+}
+.folder-swatch-picker[open] > summary { outline: 2px solid #4c8bf5; outline-offset: 2px; }
+
+.folder-swatch-popover {
+  position: absolute; top: calc(100% + .4rem); left: 0; z-index: 20;
+  background: Canvas;
+  border: 1px solid #8886; border-radius: .5rem;
+  padding: .6rem;
+  box-shadow: 0 6px 20px #0003;
+}
+.folder-swatch-popover .swatch-grid { margin-top: 0; max-width: 11rem; }
+.folder-swatch-popover .swatch { border: 2px solid transparent; }
+@media (prefers-color-scheme: dark) {
+  .folder-swatch-popover { background: #222; border-color: #8886; }
+  .folder-swatch-popover .swatch { color: #fff; }
+}
 .rename-form input[type=text] { width: auto; padding: .35rem .55rem; font-size: .9rem; }
 .rename-form button { padding: .35rem .7rem; font-size: .9rem; }
 

@@ -1,0 +1,34 @@
+{# Folder colour swatch — click to pick, or a static block for Unfiled.
+   folder:   Folder row (or None for the Unfiled pseudo-folder).
+   next_to:  "home" or "folder_list" — where to redirect after a pick. #}
+{% macro folder_swatch(folder, next_to) -%}
+{% if folder is none %}
+  <span class="folder-swatch folder-swatch-static"
+        style="background-color: {{ unfiled_swatch }};"
+        aria-hidden="true"></span>
+{% else %}
+<details class="folder-swatch-picker">
+  <summary class="folder-swatch"
+           style="background-color: {{ folder.color or unfiled_swatch }};"
+           title="Change folder colour"
+           aria-label="Change colour of folder {{ folder.name }}"></summary>
+  <form method="post"
+        action="{{ url_for('folder_set_color', folder_id=folder.id) }}"
+        class="folder-swatch-popover">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ next_to }}">
+    <span class="swatch-grid" role="radiogroup" aria-label="Folder colour">
+      {% for c in folder_palette %}
+      <button type="submit" name="color" value="{{ c }}"
+              class="swatch{% if folder.color == c %} swatch-selected{% endif %}"
+              style="background-color: {{ c }}"
+              title="{{ c }}"
+              aria-label="Set colour to {{ c }}">
+        <span class="swatch-check" aria-hidden="true">✓</span>
+      </button>
+      {% endfor %}
+    </span>
+  </form>
+</details>
+{% endif %}
+{%- endmacro %}
