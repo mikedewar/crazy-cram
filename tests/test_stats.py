@@ -131,10 +131,11 @@ def test_folder_table_rendered_with_sessions_in_order(client, invite, app):
     i_old = body.index("2026-02-01")
     i_new = body.index("2026-02-03")
     assert i_old < i_new
-    # Bright colour used; dull colour is a desaturated version of #ff8800.
-    assert "#ff8800" in body
-    # Dull: 0xff*0.35 + 0xff*0.65 = 255 -> ff; 0x88*0.35 + 0xff*0.65 ≈ 213 -> d5; 0 + ff*0.65 ≈ 166 -> a6
-    assert "#ffd5a6" in body
+    # Deck colour #ff8800 under the high-contrast formula:
+    #   bright = colour * 0.75    -> round(255,136,0 * 0.75) = (191,102,0) = #bf6600
+    #   dull   = colour*0.15 + 0xe8*0.85 -> (235,218,197) = #ebdac5
+    assert "#bf6600" in body
+    assert "#ebdac5" in body
 
 
 def test_partial_sessions_ignored(client, invite, app):

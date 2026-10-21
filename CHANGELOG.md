@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.8.1 — 2026-10-21
+
+**Stats page polish.** Deck-name row headers were laid out as `display:
+flex`, which stopped `vertical-align: middle` on the `<th>` from
+working — the text floated above the donuts' centrelines. Flex moves
+to an inner `<span>` so the `<th>` itself stays `table-cell` and the
+baseline aligns with the donut geometric centres.
+
+Donut colours now have real contrast. Previous: bright = raw deck
+colour, dull = 35% colour + 65% white (pastel decks lost their dull
+slice entirely). Now: bright = 75% of each channel (deepens the hue),
+dull = 15% deck colour + 85% light grey (`#e8e8e8`). Correct vs
+incorrect is readable at 40px.
+
 ## v1.8.0 — 2026-10-21
 
 **Stats page: small-multiples of every finished study session.** New

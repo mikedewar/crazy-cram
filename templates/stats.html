@@ -25,8 +25,10 @@
     {% for row in g.rows %}
       <tr>
         <th scope="row" class="stats-deck-name">
-          <span class="stats-deck-swatch" style="background-color: {{ row.bright }};" aria-hidden="true"></span>
-          {{ row.deck.name }}
+          <span class="stats-deck-name-inner">
+            <span class="stats-deck-swatch" style="background-color: {{ row.bright }};" aria-hidden="true"></span>
+            {{ row.deck.name }}
+          </span>
         </th>
         {% for cell in row.cells %}
           {# Donut: half-circumference r=14 -> C = 2*pi*14 ≈ 87.9646.

@@ -1732,24 +1732,36 @@ def health():
 def _bright_dull(hex_color):
     """Return (bright, dull) shades for a #rrggbb[aa] deck colour.
 
-    'Bright' is the colour itself. 'Dull' blends it ~65% toward the page
-    background so it still reads as the deck's hue but recedes. Deck
-    colour can be None (no colour chosen) -- fall back to neutral greys.
+    'Bright' is a deepened/saturated version of the deck colour so it
+    jumps forward against the dull slice. 'Dull' is pulled hard toward
+    light grey (barely tinted by the deck hue) so correct vs incorrect
+    read at a glance even on a small donut. Deck colour can be None
+    (no colour chosen) -- fall back to neutral greys.
     """
     if not hex_color:
-        return ("#999999", "#dddddd")
+        return ("#333333", "#e5e5e5")
     s = hex_color.lstrip("#")
     if len(s) < 6:
-        return ("#999999", "#dddddd")
+        return ("#333333", "#e5e5e5")
     try:
         r = int(s[0:2], 16); g = int(s[2:4], 16); b = int(s[4:6], 16)
     except ValueError:
-        return ("#999999", "#dddddd")
-    # Blend toward white to desaturate: 35% colour + 65% white.
-    dr = round(r * 0.35 + 255 * 0.65)
-    dg = round(g * 0.35 + 255 * 0.65)
-    db_ = round(b * 0.35 + 255 * 0.65)
-    bright = f"#{r:02x}{g:02x}{b:02x}"
+        return ("#333333", "#e5e5e5")
+
+    # Bright: deepen by pulling 25% toward black. Keeps hue, drops
+    # luminance so pastel deck colours still contrast against the dull.
+    br = round(r * 0.75)
+    bg = round(g * 0.75)
+    bb = round(b * 0.75)
+
+    # Dull: 85% toward a light neutral grey (#e8e8e8). The 15% deck
+    # hue is just enough to say "yes this slice belongs to this deck",
+    # without competing with the bright slice.
+    dr = round(r * 0.15 + 0xe8 * 0.85)
+    dg = round(g * 0.15 + 0xe8 * 0.85)
+    db_ = round(b * 0.15 + 0xe8 * 0.85)
+
+    bright = f"#{br:02x}{bg:02x}{bb:02x}"
     dull = f"#{dr:02x}{dg:02x}{db_:02x}"
     return (bright, dull)
 
