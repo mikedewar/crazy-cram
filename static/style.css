@@ -227,29 +227,41 @@ a.folder-row:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
 .swatch.swatch-selected .swatch-check { opacity: 1; }
 .swatch:focus-within, .swatch:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 2px; }
 
-/* Folder rows: swatch sits beside the row anchor as a flex sibling. */
+/* Folder rows: swatch sits inside the row box, overlaid on the left.
+   The row anchor keeps full-row click behaviour; it gets left padding
+   to make room for the swatch, which is a positioned sibling. */
 .folder-row-wrap {
-  display: flex; align-items: stretch; gap: .6rem;
-  margin-bottom: .5rem;
+  position: relative; margin-bottom: .5rem;
 }
 .folder-row-wrap > .deck-row, .folder-row-wrap > .folder-row {
-  flex: 1 1 auto; margin-bottom: 0;
+  margin-bottom: 0; padding-left: 2.75rem;
 }
-.folder-row-wrap.deck-row-wrap { position: relative; }
+.folder-row-wrap.deck-row-wrap > .folder-row { padding-right: 3.25rem; }
 
-.folder-swatch-picker { position: relative; }
+.folder-swatch-picker {
+  position: absolute; top: 50%; left: .9rem;
+  transform: translateY(-50%);
+  z-index: 2;
+}
 .folder-swatch-picker > summary { list-style: none; }
 .folder-swatch-picker > summary::-webkit-details-marker { display: none; }
 
 .folder-swatch {
-  display: inline-block; align-self: center;
+  display: inline-block;
   width: 1.4rem; height: 1.4rem;
   border-radius: .3rem;
   border: 1px solid #0003;
   box-shadow: 0 1px 2px #0001;
   cursor: pointer;
 }
-.folder-swatch-static { cursor: default; }
+/* Static (Unfiled) swatch — same layout as the picker so the row's
+   left padding lines up identically. */
+.folder-row-wrap > .folder-swatch-static {
+  position: absolute; top: 50%; left: .9rem;
+  transform: translateY(-50%);
+  z-index: 2;
+  cursor: default;
+}
 .folder-swatch-picker > summary:focus-visible {
   outline: 2px solid #4c8bf5; outline-offset: 2px;
 }
