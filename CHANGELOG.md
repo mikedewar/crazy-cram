@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.9.1 — 2026-10-23
+
+**Fix: Personal/Universal slider on deck edit no longer navigates away
+or silently fails.** The previous shipped slider nested a secondary
+`<form>` inside the deck edit form (invalid HTML). Browsers quietly
+dropped the inner form, so flipping the slider submitted the OUTER
+deck form instead — redirecting to `/home` without ever hitting the
+publish/unpublish endpoint, which is why the deck never appeared under
+Universal.
+
+Rewritten as a plain checkbox + `fetch()` handler that POSTs to the
+publish/unpublish endpoint (with CSRF header), then reloads so the
+edit-lock banner reflects the new state. No page navigation on flip;
+state change is now what the slider does.
+
 ## v1.9.0 — 2026-10-23
 
 **Deck sharing — the Universal folder.** Any deck can be flipped to
