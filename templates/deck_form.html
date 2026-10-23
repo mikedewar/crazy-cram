@@ -32,74 +32,59 @@
     {{ form.folder_id(disabled=published) }}
   </p>
 
-  {# Personal / Universal slider — sits under Folder, same styling bones. #}
-  <div class="pub-slider-row">
-    <div class="pub-slider" role="radiogroup" aria-label="Deck visibility">
-      {% if mode == 'edit' %}
-      {% if published %}
-      <form method="post"
-            action="{{ url_for('deck_unpublish', deck_id=deck.id) }}"
-            class="inline pub-slider-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="button" class="pub-slider-option pub-slider-selected pub-slider-right">
-          <span class="pub-slider-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M2 12h20"></path>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-            </svg>
+  {# Personal / Universal slider — a single CSS slide-toggle under
+     Folder. On /new the checkbox is a plain form field (name="publish");
+     on /edit it's inside a tiny secondary form that posts to
+     publish/unpublish when toggled. #}
+  {% set globe_svg %}
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <path d="M2 12h20"></path>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+    </svg>
+  {% endset %}
+  <div class="pub-toggle-row">
+    {% if mode == 'edit' %}
+    {% set endpoint = url_for('deck_unpublish', deck_id=deck.id) if published
+                      else url_for('deck_publish', deck_id=deck.id) %}
+    <form method="post" action="{{ endpoint }}"
+          class="inline pub-toggle-form"
+          id="pub-toggle-form-{{ deck.id }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="pub-toggle" title="Toggle Personal / Universal">
+        <input type="checkbox"
+               class="pub-toggle-input"
+               name="toggle"
+               {% if published %}checked{% endif %}
+               onchange="this.form.submit()">
+        <span class="pub-toggle-track" aria-hidden="true">
+          <span class="pub-toggle-label pub-toggle-label-left">
+            <span class="pub-toggle-icon">🏠</span>Personal
           </span>
-          Universal
-        </button>
-        <button type="submit" class="pub-slider-option pub-slider-left">
-          <span class="pub-slider-icon" aria-hidden="true">🏠</span>
-          Personal
-        </button>
-      </form>
-      {% else %}
-      <form method="post"
-            action="{{ url_for('deck_publish', deck_id=deck.id) }}"
-            class="inline pub-slider-form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="button" class="pub-slider-option pub-slider-selected pub-slider-left">
-          <span class="pub-slider-icon" aria-hidden="true">🏠</span>
-          Personal
-        </button>
-        <button type="submit" class="pub-slider-option pub-slider-right">
-          <span class="pub-slider-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M2 12h20"></path>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-            </svg>
+          <span class="pub-toggle-label pub-toggle-label-right">
+            <span class="pub-toggle-icon">{{ globe_svg }}</span>Universal
           </span>
-          Universal
-        </button>
-      </form>
-      {% endif %}
-      {% else %}
-      {# /new mode: radios on the OUTER form. Universal → create + publish. #}
-      <label class="pub-slider-option pub-slider-left pub-slider-selected">
-        <input type="radio" name="publish" value="0" checked>
-        <span class="pub-slider-icon" aria-hidden="true">🏠</span>
-        Personal
-      </label>
-      <label class="pub-slider-option pub-slider-right">
-        <input type="radio" name="publish" value="1">
-        <span class="pub-slider-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M2 12h20"></path>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-          </svg>
+          <span class="pub-toggle-thumb"></span>
         </span>
-        Universal
       </label>
-      {% endif %}
-    </div>
+    </form>
+    {% else %}
+    {# /new mode: the checkbox is on the OUTER form (name="publish",
+       value "1" when checked). deck_new reads request.form['publish']. #}
+    <label class="pub-toggle" title="Create as Personal or publish to Universal">
+      <input type="checkbox" name="publish" value="1" class="pub-toggle-input">
+      <span class="pub-toggle-track" aria-hidden="true">
+        <span class="pub-toggle-label pub-toggle-label-left">
+          <span class="pub-toggle-icon">🏠</span>Personal
+        </span>
+        <span class="pub-toggle-label pub-toggle-label-right">
+          <span class="pub-toggle-icon">{{ globe_svg }}</span>Universal
+        </span>
+        <span class="pub-toggle-thumb"></span>
+      </span>
+    </label>
+    {% endif %}
   </div>
 
   {% if palette %}
