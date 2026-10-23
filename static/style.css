@@ -825,26 +825,5 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   padding-bottom: .25rem;
   border-bottom: 1px solid #0002;
 }
-.universal-deck-grid {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-  gap: .6rem;
-}
-.universal-tile {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: .7rem .8rem;
-  border-radius: .5rem;
-  border: 1px solid #0002;
-  min-height: 5rem;
-}
-.universal-tile-body { display: flex; flex-direction: column; gap: .2rem; }
-.universal-tile-body .deck-name { font-weight: 600; }
-.universal-tile-body .deck-meta { font-size: .8rem; opacity: .75; }
-.universal-tile-actions { margin-top: .55rem; }
 
 .swatch-disabled { opacity: .5; cursor: not-allowed; }

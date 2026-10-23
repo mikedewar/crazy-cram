@@ -18,17 +18,25 @@
 {% for g in groups %}
 <section class="universal-group">
   <h2 class="universal-group-head">{{ g.user.username }}</h2>
-  <ul class="deck-grid universal-deck-grid">
+  <ul class="deck-grid">
     {% for deck in g.decks %}
     {% set is_owner = deck.user_id == current_user_id %}
     {% set already = deck.id in already_added_ids %}
-    <li class="deck-tile universal-tile"
-        {% if deck.color %}style="background-color: {{ deck.color }}"{% endif %}>
-      <div class="universal-tile-body">
+    {%- set did = deck.id -%}
+    {%- set r1 = (did * 37) % 7 - 3 -%}
+    {%- set r2 = (did * 53) % 11 - 10 -%}
+    {%- set dx1 = (did * 17) % 5 - 2 -%}
+    {%- set dy1 = (did * 23) % 4 + 1 -%}
+    {%- set dx2 = (did * 29) % 7 - 5 -%}
+    {%- set dy2 = (did * 31) % 4 + 3 -%}
+    {%- set card_count = card_counts.get(deck.id, 0) -%}
+    <li class="deck-tile" style="{% if deck.color %}--deck-color: {{ deck.color }};{% endif %}--r1: {{ r1 }}deg;--r2: {{ r2 }}deg;--dx1: {{ dx1 }}px;--dy1: {{ dy1 }}px;--dx2: {{ dx2 }}px;--dy2: {{ dy2 }}px;">
+      <div class="deck-tile-name">
         <span class="deck-name">{{ deck.name }}</span>
-        <span class="deck-meta">published {{ deck.published_at.strftime('%Y-%m-%d') }}</span>
+        <span class="deck-count">{{ card_count }} card{{ '' if card_count == 1 else 's' }}</span>
+        <span class="deck-count">published {{ deck.published_at.strftime('%Y-%m-%d') }}</span>
       </div>
-      <div class="universal-tile-actions">
+      <div class="deck-tile-actions">
         {% if is_owner or current_user.is_admin %}
         <form method="post"
               action="{{ url_for('deck_unpublish', deck_id=deck.id) }}"

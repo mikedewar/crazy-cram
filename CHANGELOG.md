@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.9.3 — 2026-10-23
+
+**Fix: `/universal` deck tiles render exactly like folder-page tiles.**
+The universal page had its own `.universal-tile` layout — a short,
+rectangular tile without the stack-of-three stacked backing cards. It
+also set `background-color: {{ deck.color }}` on the tile directly
+instead of the `--deck-color` custom property that the stacking
+pseudo-elements read, so even when a tile was coloured it showed the
+default `#e8e8e8` grey backing. Rewrote the template to reuse the
+same `.deck-tile` structure (jitter custom props, `--deck-color`
+plumbing, `.deck-tile-name` / `.deck-tile-actions`) as
+`folders/detail.html`, and added `card_count` to the view so each tile
+can show the N cards line. Published-date meta sits under the card
+count. Dropped the `.universal-tile*` CSS block.
+
 ## v1.9.2 — 2026-10-23
 
 **Fix: can type into the deck name field on `/decks/new` again.** The

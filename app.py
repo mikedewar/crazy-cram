@@ -780,11 +780,16 @@ def universal_index():
     ordered by their most-recent publish time (newest group first).
     Within each group: decks by published_at desc (youngest first).
     """
-    published = (
-        Deck.query.filter(Deck.published_at.isnot(None))
+    rows = (
+        db.session.query(Deck, func.count(Card.id))
+        .outerjoin(Card, Card.deck_id == Deck.id)
+        .filter(Deck.published_at.isnot(None))
+        .group_by(Deck.id)
         .order_by(Deck.published_at.desc(), Deck.id.desc())
         .all()
     )
+    published = [d for (d, _n) in rows]
+    card_counts = {d.id: n for (d, n) in rows}
     # Which of the user's decks were copied from which source?
     already_added_ids = set()
     for d in Deck.query.filter(
@@ -828,6 +833,7 @@ def universal_index():
     return render_template(
         "universal.html",
         groups=groups,
+        card_counts=card_counts,
         already_added_ids=already_added_ids,
         current_user_id=current_user.id,
     )
