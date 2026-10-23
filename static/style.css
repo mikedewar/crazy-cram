@@ -826,4 +826,61 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   border-bottom: 1px solid #0002;
 }
 
+/* --- Save-to-folder picker (universal page) ------------------------- */
+.save-to-folder-picker { position: relative; display: inline-block; }
+.save-to-folder-picker[open] { z-index: 9999; isolation: isolate; }
+/* Promote the whole tile above later-DOM-order sibling tiles whenever
+   its save-to-folder picker is open, so the popover can escape below
+   the tile without being painted over by the next row's tiles. */
+.deck-tile:has(.save-to-folder-picker[open]) {
+  z-index: 9999;
+  position: relative;
+}
+.save-to-folder-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: .3rem .7rem;
+  font-size: .8rem;
+}
+.save-to-folder-summary::-webkit-details-marker { display: none; }
+.save-to-folder-picker[open] > .save-to-folder-summary {
+  outline: 2px solid #4c8bf5; outline-offset: 2px;
+}
+.save-to-folder-popover {
+  position: absolute; top: calc(100% + .4rem); left: 0;
+  z-index: 9999;
+  background: Canvas; color: CanvasText;
+  border: 1px solid #8886; border-radius: .5rem;
+  padding: .4rem;
+  box-shadow: 0 6px 20px #0003;
+  min-width: 10rem; max-width: 14rem;
+}
+.save-to-folder-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: .15rem;
+  max-height: 14rem; overflow-y: auto;
+}
+.save-to-folder-option {
+  display: flex; align-items: center; gap: .5rem;
+  width: 100%; text-align: left;
+  padding: .35rem .5rem;
+  background: transparent; color: inherit;
+  border: 1px solid transparent; border-radius: .3rem;
+  font: inherit; cursor: pointer;
+}
+.save-to-folder-option:hover,
+.save-to-folder-option:focus-visible {
+  background: #0001; border-color: #8886; outline: none;
+}
+.save-to-folder-swatch {
+  display: inline-block; width: 1rem; height: 1rem;
+  border-radius: .25rem; border: 1px solid #0003;
+  flex-shrink: 0;
+}
+@media (prefers-color-scheme: dark) {
+  .save-to-folder-popover { background: #222; border-color: #8886; }
+  .save-to-folder-option:hover,
+  .save-to-folder-option:focus-visible { background: #fff2; }
+}
+
 .swatch-disabled { opacity: .5; cursor: not-allowed; }

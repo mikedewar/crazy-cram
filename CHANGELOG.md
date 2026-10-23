@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.9.4 — 2026-10-23
+
+**Save to folder picker on `/universal`.** Each universal deck tile
+now carries a "Save to folder" button in place of the old "Add To
+Decks" button. Clicking opens a `<details>` popover listing the
+user's folders (plus "Unfiled" as the first entry); picking one
+copies the deck straight into that folder, instead of always landing
+in Unfiled. `POST /universal/<id>/add` accepts an optional
+`folder_id` form field — blank/missing → Unfiled; owned folder id →
+that folder; non-integer → 400; another user's id → 404 per the
+cross-user isolation rule. The deck tile is promoted above later
+sibling tiles while the picker is open (`:has()` + `z-index: 9999`)
+so the popover can escape downward without being painted over by the
+next row. 5 new tests.
+
 ## v1.9.3 — 2026-10-23
 
 **Fix: `/universal` deck tiles render exactly like folder-page tiles.**

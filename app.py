@@ -830,12 +830,18 @@ def universal_index():
         }
         for uid in sorted_uids
     ]
+    user_folders = (
+        Folder.query.filter_by(user_id=current_user.id)
+        .order_by(Folder.name.asc())
+        .all()
+    )
     return render_template(
         "universal.html",
         groups=groups,
         card_counts=card_counts,
         already_added_ids=already_added_ids,
         current_user_id=current_user.id,
+        user_folders=user_folders,
     )
 
 
@@ -851,6 +857,18 @@ def universal_add(deck_id):
     source = db.session.get(Deck, deck_id)
     if source is None or source.published_at is None:
         abort(404)
+    # Destination folder: blank/missing form field → Unfiled.
+    raw_folder_id = (request.form.get("folder_id") or "").strip()
+    dest_folder_id = None
+    if raw_folder_id:
+        try:
+            fid = int(raw_folder_id)
+        except ValueError:
+            abort(400)
+        folder = db.session.get(Folder, fid)
+        if folder is None or folder.user_id != current_user.id:
+            abort(404)  # cross-user → 404, per isolation rule
+        dest_folder_id = folder.id
     existing = Deck.query.filter_by(
         user_id=current_user.id, source_deck_id=source.id,
     ).first()
@@ -860,7 +878,7 @@ def universal_add(deck_id):
     copy = Deck(
         user_id=current_user.id,
         name=source.name,
-        folder_id=None,  # lands in Unfiled; user retitles/moves on /edit
+        folder_id=dest_folder_id,
         color=source.color,
         source_deck_id=source.id,
     )

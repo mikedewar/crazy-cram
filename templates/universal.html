@@ -49,12 +49,33 @@
         {% elif already %}
         <button type="button" class="btn-secondary" disabled>Already Added</button>
         {% else %}
-        <form method="post"
-              action="{{ url_for('universal_add', deck_id=deck.id) }}"
-              class="inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn">Add To Decks</button>
-        </form>
+        <details class="save-to-folder-picker">
+          <summary class="btn save-to-folder-summary">Save to folder</summary>
+          <div class="save-to-folder-popover">
+            <form method="post"
+                  action="{{ url_for('universal_add', deck_id=deck.id) }}"
+                  class="save-to-folder-form">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <ul class="save-to-folder-list" role="menu">
+                <li>
+                  <button type="submit" name="folder_id" value=""
+                          class="save-to-folder-option">Unfiled</button>
+                </li>
+                {% for f in user_folders %}
+                <li>
+                  <button type="submit" name="folder_id" value="{{ f.id }}"
+                          class="save-to-folder-option">
+                    <span class="save-to-folder-swatch"
+                          style="background-color: {{ f.color or '#8a8a8a' }};"
+                          aria-hidden="true"></span>
+                    <span>{{ f.name }}</span>
+                  </button>
+                </li>
+                {% endfor %}
+              </ul>
+            </form>
+          </div>
+        </details>
         {% endif %}
       </div>
     </li>

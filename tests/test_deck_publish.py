@@ -271,9 +271,9 @@ def test_universal_renders_already_added_button(client, invite, app):
     client.post("/logout")
 
     _register(client, invite, "bob")
-    # First visit: Add To Decks is present.
+    # First visit: Save to folder picker is present.
     r1 = client.get("/universal")
-    assert b"Add To Decks" in r1.data
+    assert b"Save to folder" in r1.data
     assert b"Already Added" not in r1.data
 
     client.post(f"/universal/{source}/add")
@@ -290,9 +290,8 @@ def test_owner_sees_unpublish_button_on_universal(client, invite, app):
     r = client.get("/universal")
     assert r.status_code == 200
     assert b"Unpublish" in r.data
-    # Should NOT also show the Add To Decks button on your own deck.
-    # (Loose check: Add To Decks button text absent.)
-    assert b"Add To Decks" not in r.data
+    # Should NOT also show the Save to folder picker on your own deck.
+    assert b"Save to folder" not in r.data
 
 
 # ------------------------------------------------------------------ 7.
@@ -495,3 +494,122 @@ def test_edit_slider_data_attrs_point_at_correct_routes(client, invite, app):
     body = r.data.decode()
     assert f'data-publish-url="/decks/{did}/publish"' in body
     assert f'data-unpublish-url="/decks/{did}/unpublish"' in body
+
+
+# ------------------------------------------------------------------ 9.
+# v1.9.4 — Save-to-folder picker on /universal
+
+def test_universal_add_with_folder_id_lands_in_that_folder(client, invite, app):
+    """POST /universal/<id>/add with folder_id=<fid> drops the copy into
+    the chosen folder (not Unfiled)."""
+    _register(client, invite, "alice")
+    source = _make_deck(client, "French")
+    client.post(f"/decks/{source}/publish")
+    client.post("/logout")
+
+    _register(client, invite, "bob")
+    # Create a folder, then grab its id.
+    client.post("/folders/new", data={"name": "Languages", "submit": "Save folder"})
+    with app.app.app_context():
+        bob = app.User.query.filter_by(username="bob").one()
+        folder = app.Folder.query.filter_by(user_id=bob.id, name="Languages").one()
+        fid = folder.id
+
+    r = client.post(
+        f"/universal/{source}/add",
+        data={"folder_id": str(fid)},
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    with app.app.app_context():
+        bob = app.User.query.filter_by(username="bob").one()
+        copy = app.Deck.query.filter_by(
+            user_id=bob.id, source_deck_id=source
+        ).one()
+        assert copy.folder_id == fid
+
+
+def test_universal_add_with_blank_folder_id_lands_in_unfiled(client, invite, app):
+    """Blank/missing folder_id → Unfiled (preserves old 'Add To Decks'
+    behaviour)."""
+    _register(client, invite, "alice")
+    source = _make_deck(client, "French")
+    client.post(f"/decks/{source}/publish")
+    client.post("/logout")
+
+    _register(client, invite, "bob")
+    r = client.post(
+        f"/universal/{source}/add",
+        data={"folder_id": ""},
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    with app.app.app_context():
+        bob = app.User.query.filter_by(username="bob").one()
+        copy = app.Deck.query.filter_by(
+            user_id=bob.id, source_deck_id=source
+        ).one()
+        assert copy.folder_id is None
+
+
+def test_universal_add_rejects_cross_user_folder(client, invite, app):
+    """Posting a folder_id owned by another user returns 404 (isolation
+    rule: cross-user access is 404, not 403)."""
+    _register(client, invite, "alice")
+    source = _make_deck(client, "French")
+    client.post(f"/decks/{source}/publish")
+    # Alice makes a folder too.
+    client.post("/folders/new", data={"name": "AliceFolder", "submit": "Save folder"})
+    with app.app.app_context():
+        alice = app.User.query.filter_by(username="alice").one()
+        alice_fid = app.Folder.query.filter_by(user_id=alice.id).first().id
+    client.post("/logout")
+
+    _register(client, invite, "bob")
+    r = client.post(
+        f"/universal/{source}/add",
+        data={"folder_id": str(alice_fid)},
+        follow_redirects=False,
+    )
+    assert r.status_code == 404
+    with app.app.app_context():
+        bob = app.User.query.filter_by(username="bob").one()
+        # No copy created.
+        assert app.Deck.query.filter_by(
+            user_id=bob.id, source_deck_id=source
+        ).count() == 0
+
+
+def test_universal_lists_user_folders_in_picker(client, invite, app):
+    """The /universal page renders every one of the current user's
+    folder names inside the save-to-folder picker."""
+    _register(client, invite, "alice")
+    source = _make_deck(client, "French")
+    client.post(f"/decks/{source}/publish")
+    client.post("/logout")
+
+    _register(client, invite, "bob")
+    client.post("/folders/new", data={"name": "Languages", "submit": "Save folder"})
+    client.post("/folders/new", data={"name": "History", "submit": "Save folder"})
+
+    r = client.get("/universal")
+    body = r.data.decode()
+    assert "Save to folder" in body
+    assert "Languages" in body
+    assert "History" in body
+    assert "Unfiled" in body  # picker always offers Unfiled as an option
+
+
+def test_universal_add_rejects_non_integer_folder_id(client, invite, app):
+    _register(client, invite, "alice")
+    source = _make_deck(client, "French")
+    client.post(f"/decks/{source}/publish")
+    client.post("/logout")
+
+    _register(client, invite, "bob")
+    r = client.post(
+        f"/universal/{source}/add",
+        data={"folder_id": "not-an-int"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 400
