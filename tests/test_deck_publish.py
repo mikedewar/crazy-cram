@@ -414,6 +414,22 @@ def test_home_universal_tile_counts_across_users(client, invite, app):
     assert b"1 deck" in r.data
 
 
+def test_new_deck_form_name_input_is_not_disabled(client, invite, app):
+    """Regression: v1.9.0 passed `disabled=published` to the WTForms field
+    without defining `published` in the /new render context, so the name
+    and folder inputs rendered with `disabled=""` and the user couldn't
+    type into them."""
+    _register(client, invite, "alice")
+    r = client.get("/decks/new")
+    assert r.status_code == 200
+    html = r.data.decode()
+    import re
+    name_tag = re.search(r'<input[^>]*id="name"[^>]*>', html).group(0)
+    folder_tag = re.search(r'<select[^>]*id="folder_id"[^>]*>', html).group(0)
+    assert "disabled" not in name_tag, name_tag
+    assert "disabled" not in folder_tag, folder_tag
+
+
 def test_published_deck_cards_page_is_read_only(client, invite, app):
     _register(client, invite, "alice")
     did = _make_deck(client, cards=[("q1", "a1")])

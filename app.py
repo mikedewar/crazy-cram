@@ -676,7 +676,7 @@ def deck_new():
         db.session.commit()
         flash(f"Deck “{deck.name}” created.", "info")
         return redirect(url_for("deck_cards", deck_id=deck.id))
-    return render_template("deck_form.html", form=form, mode="new", palette=DECK_PALETTE)
+    return render_template("deck_form.html", form=form, mode="new", palette=DECK_PALETTE, published=False)
 
 
 @app.route("/decks/<int:deck_id>/edit", methods=["GET", "POST"])

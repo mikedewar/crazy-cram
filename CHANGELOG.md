@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.9.2 — 2026-10-23
+
+**Fix: can type into the deck name field on `/decks/new` again.** The
+v1.9.0 slider rewrite added `disabled=published` to the WTForms field
+renders in `deck_form.html`, but the `/new` view never passed
+`published` into the template context. Jinja silently resolved that
+to `Undefined`, which WTForms rendered as `disabled=""` — making the
+name input and folder dropdown non-interactive. Pass `published=False`
+on `/new` so the fields render editable; regression test asserts no
+`disabled` attribute on either tag.
+
 ## v1.9.1 — 2026-10-23
 
 **Fix: Personal/Universal slider on deck edit no longer navigates away
