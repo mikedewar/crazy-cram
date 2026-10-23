@@ -739,42 +739,83 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   .banner-info { background: #1e2a40; border-color: #4c8bf577; }
 }
 
-/* Personal / Universal slider. CSS-only; renders as a pill with two
-   halves, selected half tinted. */
-.pub-slider-row { margin: .4rem 0 1rem; }
-.pub-slider,
-.pub-slider-form {
-  display: inline-flex;
-  border: 1px solid #0003;
-  border-radius: 999px;
-  overflow: hidden;
-  background: #0001;
-}
-.pub-slider-option {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  padding: .35rem .9rem;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-  line-height: 1.2;
-}
-.pub-slider-option input[type="radio"] {
+/* Personal / Universal slider — single CSS slide toggle, driven by a
+   hidden <input type="checkbox">. Checked = Universal (right); the
+   .pub-toggle-thumb slides across to match. */
+.pub-toggle-row { margin: .4rem 0 1rem; }
+
+.pub-toggle { display: inline-block; cursor: pointer; }
+.pub-toggle-input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
+  width: 0; height: 0;
 }
-/* Mark the "selected" half via explicit class on edit mode (server-set),
-   and via :has() for /new mode (CSS-only radio-driven). */
-.pub-slider-option.pub-slider-selected,
-.pub-slider-option:has(input[type="radio"]:checked) {
+
+.pub-toggle-track {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  width: 15rem;
+  height: 2.1rem;
+  padding: .15rem;
+  border: 1px solid #0003;
+  border-radius: 999px;
+  background: #e9edf3;
+  overflow: hidden;
+  user-select: none;
+  transition: background-color .15s ease;
+}
+@media (prefers-color-scheme: dark) {
+  .pub-toggle-track { background: #262a31; border-color: #ffffff22; }
+}
+
+.pub-toggle-label {
+  flex: 1 1 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  position: relative;
+  z-index: 2;
+  font-size: .9rem;
+  line-height: 1;
+  color: #333;
+  transition: color .15s ease;
+}
+@media (prefers-color-scheme: dark) {
+  .pub-toggle-label { color: #e6e9ef; }
+}
+.pub-toggle-icon { display: inline-flex; align-items: center; }
+.pub-toggle-icon svg { display: block; }
+
+/* The thumb sits BEHIND the labels; selected-half label goes white. */
+.pub-toggle-thumb {
+  position: absolute;
+  top: .15rem; left: .15rem;
+  width: calc(50% - .15rem);
+  height: calc(100% - .3rem);
+  border-radius: 999px;
   background: #4c8bf5;
+  box-shadow: 0 1px 3px #0003;
+  transition: transform .18s ease;
+  z-index: 1;
+}
+.pub-toggle-input:checked + .pub-toggle-track .pub-toggle-thumb {
+  transform: translateX(100%);
+}
+/* Default (unchecked): left label is on the thumb → white text. */
+.pub-toggle-input:not(:checked) + .pub-toggle-track .pub-toggle-label-left {
   color: #fff;
 }
-.pub-slider-icon { display: inline-flex; align-items: center; }
+.pub-toggle-input:checked + .pub-toggle-track .pub-toggle-label-right {
+  color: #fff;
+}
+
+.pub-toggle-input:focus-visible + .pub-toggle-track {
+  outline: 2px solid #4c8bf5;
+  outline-offset: 2px;
+}
 
 /* --- Universal page tiles ------------------------------------------- */
 .universal-group { margin-bottom: 1.6rem; }
