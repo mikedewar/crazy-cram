@@ -600,6 +600,28 @@ def test_universal_lists_user_folders_in_picker(client, invite, app):
     assert "Unfiled" in body  # picker always offers Unfiled as an option
 
 
+def test_admin_sees_save_to_folder_on_someone_elses_universal_deck(
+    client, invite, app
+):
+    """Admin viewing /universal gets BOTH 'Save to folder' and
+    'Unpublish (admin)' on decks they don't own — the admin unpublish
+    power doesn't suppress their ability to copy."""
+    _register(client, invite, "alice")
+    did = _make_deck(client, "French")
+    client.post(f"/decks/{did}/publish")
+    client.post("/logout")
+
+    _register(client, invite, "bob")
+    _make_admin(app, "bob")
+    client.post("/logout")
+    _login(client, "bob", "correct-horse-1")
+
+    r = client.get("/universal")
+    body = r.data.decode()
+    assert "Save to folder" in body
+    assert "Unpublish (admin)" in body
+
+
 def test_universal_add_rejects_non_integer_folder_id(client, invite, app):
     _register(client, invite, "alice")
     source = _make_deck(client, "French")

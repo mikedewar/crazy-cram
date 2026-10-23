@@ -37,45 +37,58 @@
         <span class="deck-count">published {{ deck.published_at.strftime('%Y-%m-%d') }}</span>
       </div>
       <div class="deck-tile-actions">
-        {% if is_owner or current_user.is_admin %}
+        {# Owner sees only Unpublish. Non-owners see Save-to-folder (or
+           Already Added if they already copied this one). Admins who
+           don't own the deck ALSO get Unpublish (admin) alongside the
+           Save/Already Added control, per the admin-can-unpublish-any
+           rule. #}
+        {% if is_owner %}
         <form method="post"
               action="{{ url_for('deck_unpublish', deck_id=deck.id) }}"
               class="inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn-secondary">
-            {{ 'Unpublish' if is_owner else 'Unpublish (admin)' }}
-          </button>
+          <button type="submit" class="btn-secondary">Unpublish</button>
         </form>
-        {% elif already %}
-        <button type="button" class="btn-secondary" disabled>Already Added</button>
         {% else %}
-        <details class="save-to-folder-picker">
-          <summary class="btn save-to-folder-summary">Save to folder</summary>
-          <div class="save-to-folder-popover">
-            <form method="post"
-                  action="{{ url_for('universal_add', deck_id=deck.id) }}"
-                  class="save-to-folder-form">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <ul class="save-to-folder-list" role="menu">
-                <li>
-                  <button type="submit" name="folder_id" value=""
-                          class="save-to-folder-option">Unfiled</button>
-                </li>
-                {% for f in user_folders %}
-                <li>
-                  <button type="submit" name="folder_id" value="{{ f.id }}"
-                          class="save-to-folder-option">
-                    <span class="save-to-folder-swatch"
-                          style="background-color: {{ f.color or '#8a8a8a' }};"
-                          aria-hidden="true"></span>
-                    <span>{{ f.name }}</span>
-                  </button>
-                </li>
-                {% endfor %}
-              </ul>
-            </form>
-          </div>
-        </details>
+          {% if already %}
+          <button type="button" class="btn-secondary" disabled>Already Added</button>
+          {% else %}
+          <details class="save-to-folder-picker">
+            <summary class="btn save-to-folder-summary">Save to folder</summary>
+            <div class="save-to-folder-popover">
+              <form method="post"
+                    action="{{ url_for('universal_add', deck_id=deck.id) }}"
+                    class="save-to-folder-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <ul class="save-to-folder-list" role="menu">
+                  <li>
+                    <button type="submit" name="folder_id" value=""
+                            class="save-to-folder-option">Unfiled</button>
+                  </li>
+                  {% for f in user_folders %}
+                  <li>
+                    <button type="submit" name="folder_id" value="{{ f.id }}"
+                            class="save-to-folder-option">
+                      <span class="save-to-folder-swatch"
+                            style="background-color: {{ f.color or '#8a8a8a' }};"
+                            aria-hidden="true"></span>
+                      <span>{{ f.name }}</span>
+                    </button>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </form>
+            </div>
+          </details>
+          {% endif %}
+          {% if current_user.is_admin %}
+          <form method="post"
+                action="{{ url_for('deck_unpublish', deck_id=deck.id) }}"
+                class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-secondary">Unpublish (admin)</button>
+          </form>
+          {% endif %}
         {% endif %}
       </div>
     </li>

@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.9.5 — 2026-10-23
+
+**Fix: admins now see "Save to folder" on `/universal`.** v1.9.4's
+template branch rendered "Unpublish (admin)" in place of the Save
+picker whenever the viewer was an admin, so for the only two admins
+on the system (mikedewar + AliMonkeyBrains) the Save button never
+appeared on any deck. Branches reshaped: owner-only sees Unpublish;
+everyone else sees Save to folder (or Already Added if copied);
+admins who don't own the deck additionally get Unpublish (admin)
+alongside Save/Already Added. New test covers the admin + Save-to-
+folder combo.
+
 ## v1.9.4 — 2026-10-23
 
 **Save to folder picker on `/universal`.** Each universal deck tile
