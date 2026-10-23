@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Universal — Crazy-Cram{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Universal</h1>
+  <div class="page-head-actions">
+    <a class="btn-secondary" href="{{ url_for('home') }}">← Home</a>
+  </div>
+</div>
+
+{% if not groups %}
+<div class="empty-state">
+  <p>No published decks yet. Flip any of your decks to Universal from
+     its edit page to share it here.</p>
+</div>
+{% else %}
+
+{% for g in groups %}
+<section class="universal-group">
+  <h2 class="universal-group-head">{{ g.user.username }}</h2>
+  <ul class="deck-grid universal-deck-grid">
+    {% for deck in g.decks %}
+    {% set is_owner = deck.user_id == current_user_id %}
+    {% set already = deck.id in already_added_ids %}
+    <li class="deck-tile universal-tile"
+        {% if deck.color %}style="background-color: {{ deck.color }}"{% endif %}>
+      <div class="universal-tile-body">
+        <span class="deck-name">{{ deck.name }}</span>
+        <span class="deck-meta">published {{ deck.published_at.strftime('%Y-%m-%d') }}</span>
+      </div>
+      <div class="universal-tile-actions">
+        {% if is_owner or current_user.is_admin %}
+        <form method="post"
+              action="{{ url_for('deck_unpublish', deck_id=deck.id) }}"
+              class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn-secondary">
+            {{ 'Unpublish' if is_owner else 'Unpublish (admin)' }}
+          </button>
+        </form>
+        {% elif already %}
+        <button type="button" class="btn-secondary" disabled>Already Added</button>
+        {% else %}
+        <form method="post"
+              action="{{ url_for('universal_add', deck_id=deck.id) }}"
+              class="inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn">Add To Decks</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+
+{% endif %}
+{% endblock %}

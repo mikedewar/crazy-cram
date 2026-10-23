@@ -15,6 +15,14 @@
   </div>
 </div>
 
+{% if deck.published_at %}
+<p class="banner banner-info">
+  This deck is <strong>published to Universal</strong>. Cards are
+  read-only until you unpublish it on the
+  <a href="{{ url_for('deck_edit', deck_id=deck.id) }}">deck edit page</a>.
+</p>
+{% endif %}
+
 <h2>Cards ({{ cards|length }})</h2>
 
 {% if cards %}
@@ -25,6 +33,7 @@
       <div class="card-side"><span class="card-label">Q</span> <span class="card-text">{{ c.question }}</span></div>
       <div class="card-side"><span class="card-label">A</span> <span class="card-text">{{ c.answer }}</span></div>
     </div>
+    {% if not deck.published_at %}
     <div class="card-tile-actions">
       <a class="icon-btn"
          href="{{ url_for('card_edit', card_id=c.id) }}"
@@ -41,6 +50,7 @@
         </button>
       </form>
     </div>
+    {% endif %}
   </li>
   {% endfor %}
 </ul>
@@ -50,6 +60,7 @@
 </div>
 {% endif %}
 
+{% if not deck.published_at %}
 <h2>Add a card</h2>
 <form method="post" novalidate>
   {{ form.hidden_tag() }}
@@ -65,4 +76,5 @@
   </p>
   <p>{{ form.submit }}</p>
 </form>
+{% endif %}
 {% endblock %}

@@ -641,12 +641,14 @@ def home():
     folders = [{"folder": f, "deck_count": n} for (f, n) in folder_rows]
     unfiled_count = Deck.query.filter_by(user_id=current_user.id, folder_id=None).count()
     total_decks = Deck.query.filter_by(user_id=current_user.id).count()
+    universal_count = Deck.query.filter(Deck.published_at.isnot(None)).count()
 
     return render_template(
         "home.html",
         user=current_user,
         folders=folders,
         unfiled_count=unfiled_count,
+        universal_count=universal_count,
         total_decks=total_decks,
     )
 
@@ -667,6 +669,9 @@ def deck_new():
             user_id=current_user.id, name=form.name.data,
             folder_id=folder_id, color=color,
         )
+        # Slider on /new: publish=1 means create-and-publish atomically.
+        if request.form.get("publish") == "1":
+            deck.published_at = datetime.now(timezone.utc)
         db.session.add(deck)
         db.session.commit()
         flash(f"Deck “{deck.name}” created.", "info")

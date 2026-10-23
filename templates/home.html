@@ -22,6 +22,16 @@
   </div>
   <ul class="deck-list">
     <li class="folder-row-wrap">
+      {{ folder_swatch("universal", "home") }}
+      <a class="deck-row folder-row" href="{{ url_for('universal_index') }}">
+        <span class="deck-info">
+          <span class="deck-name">Universal</span>
+          <span class="deck-count">{{ universal_count }} deck{{ '' if universal_count == 1 else 's' }}</span>
+        </span>
+        <span class="folder-row-chev" aria-hidden="true">›</span>
+      </a>
+    </li>
+    <li class="folder-row-wrap">
       {{ folder_swatch(none, "home") }}
       <a class="deck-row folder-row" href="{{ url_for('folder_unfiled') }}">
         <span class="deck-info">

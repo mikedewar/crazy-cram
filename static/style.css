@@ -711,3 +711,99 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 }
 .stats-cell { padding: .1rem .15rem; }
 .stats-donut { display: block; }
+
+/* --- Universal folder + publish slider (v1.9.0) ---------------------- */
+
+/* Globe swatch on /home — neutral grey, non-clickable like Unfiled. */
+.folder-swatch-universal {
+  background-color: #e6e8ec;
+  color: #4a5160;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+@media (prefers-color-scheme: dark) {
+  .folder-swatch-universal { background-color: #2b2f36; color: #c7cbd1; }
+}
+
+/* Banner for the published-deck notice (reuses neutral info colours). */
+.banner {
+  padding: .55rem .8rem;
+  border-radius: .4rem;
+  border: 1px solid #0002;
+  background: #f3f6fb;
+  margin: .6rem 0 1rem;
+}
+.banner-info { border-color: #4c8bf544; background: #e7eefb; }
+@media (prefers-color-scheme: dark) {
+  .banner-info { background: #1e2a40; border-color: #4c8bf577; }
+}
+
+/* Personal / Universal slider. CSS-only; renders as a pill with two
+   halves, selected half tinted. */
+.pub-slider-row { margin: .4rem 0 1rem; }
+.pub-slider,
+.pub-slider-form {
+  display: inline-flex;
+  border: 1px solid #0003;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #0001;
+}
+.pub-slider-option {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .35rem .9rem;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  line-height: 1.2;
+}
+.pub-slider-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Mark the "selected" half via explicit class on edit mode (server-set),
+   and via :has() for /new mode (CSS-only radio-driven). */
+.pub-slider-option.pub-slider-selected,
+.pub-slider-option:has(input[type="radio"]:checked) {
+  background: #4c8bf5;
+  color: #fff;
+}
+.pub-slider-icon { display: inline-flex; align-items: center; }
+
+/* --- Universal page tiles ------------------------------------------- */
+.universal-group { margin-bottom: 1.6rem; }
+.universal-group-head {
+  font-size: 1.05rem;
+  margin: .4rem 0 .5rem;
+  padding-bottom: .25rem;
+  border-bottom: 1px solid #0002;
+}
+.universal-deck-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: .6rem;
+}
+.universal-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: .7rem .8rem;
+  border-radius: .5rem;
+  border: 1px solid #0002;
+  min-height: 5rem;
+}
+.universal-tile-body { display: flex; flex-direction: column; gap: .2rem; }
+.universal-tile-body .deck-name { font-weight: 600; }
+.universal-tile-body .deck-meta { font-size: .8rem; opacity: .75; }
+.universal-tile-actions { margin-top: .55rem; }
+
+.swatch-disabled { opacity: .5; cursor: not-allowed; }
