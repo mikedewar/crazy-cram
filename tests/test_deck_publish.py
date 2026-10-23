@@ -424,3 +424,58 @@ def test_published_deck_cards_page_is_read_only(client, invite, app):
     assert b"Add a card" not in r.data
     # Banner reminds the user.
     assert b"published to Universal" in r.data
+
+
+# ---------------- v1.9.1 — slider fetch, no nested form ------------
+
+def test_deck_edit_slider_is_not_a_nested_form(client, invite, app):
+    """The Personal/Universal slider on /edit must NOT be inside a nested
+    <form>. Nested forms are invalid HTML and v1.9.0 shipped exactly that
+    bug — browsers submitted the outer deck form on toggle, redirecting
+    to /home without ever hitting /publish."""
+    _register(client, invite, "alice")
+    did = _make_deck(client)
+    r = client.get(f"/decks/{did}/edit")
+    assert r.status_code == 200
+    body = r.data.decode()
+    # The deck form opens exactly once per page; count '<form' before the
+    # first </form> to make sure nothing else opens inside it.
+    first_open = body.index("<form")
+    first_close = body.index("</form>", first_open)
+    inside = body[first_open:first_close]
+    assert inside.count("<form") == 1, "nested <form> inside deck form"
+    # The slider must have a fetch-handler hook, not an inline submit.
+    assert 'id="pub-toggle-' in body
+    assert "data-publish-url" in body
+    assert "data-unpublish-url" in body
+
+
+def test_publish_endpoint_accepts_empty_body(client, invite, app):
+    """The fetch() slider handler sends an empty POST body with no form
+    fields — just the X-CSRFToken header. The publish/unpublish routes
+    must not require any form payload."""
+    _register(client, invite, "alice")
+    did = _make_deck(client)
+    # Empty body, no content-type form fields: this is what fetch() sends.
+    r = client.post(f"/decks/{did}/publish", data={})
+    assert r.status_code in (200, 302)
+    with app.app.app_context():
+        assert app.Deck.query.get(did).published_at is not None
+    # And unpublish from empty body too.
+    r = client.post(f"/decks/{did}/unpublish", data={})
+    assert r.status_code in (200, 302)
+    with app.app.app_context():
+        assert app.Deck.query.get(did).published_at is None
+
+
+def test_edit_slider_data_attrs_point_at_correct_routes(client, invite, app):
+    """The edit-mode slider renders data-publish-url + data-unpublish-url
+    on the checkbox so the fetch handler can POST to the right endpoint
+    on toggle. These URLs must resolve to /decks/<id>/publish and
+    /decks/<id>/unpublish respectively."""
+    _register(client, invite, "alice")
+    did = _make_deck(client)
+    r = client.get(f"/decks/{did}/edit")
+    body = r.data.decode()
+    assert f'data-publish-url="/decks/{did}/publish"' in body
+    assert f'data-unpublish-url="/decks/{did}/unpublish"' in body

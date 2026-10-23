@@ -33,9 +33,9 @@
   </p>
 
   {# Personal / Universal slider — a single CSS slide-toggle under
-     Folder. On /new the checkbox is a plain form field (name="publish");
-     on /edit it's inside a tiny secondary form that posts to
-     publish/unpublish when toggled. #}
+     Folder. On /new the checkbox is a plain form field (name="publish").
+     On /edit the checkbox has no name= and a fetch() handler posts to
+     publish/unpublish on change, then reloads — no page navigation. #}
   {% set globe_svg %}
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -46,29 +46,27 @@
   {% endset %}
   <div class="pub-toggle-row">
     {% if mode == 'edit' %}
-    {% set endpoint = url_for('deck_unpublish', deck_id=deck.id) if published
-                      else url_for('deck_publish', deck_id=deck.id) %}
-    <form method="post" action="{{ endpoint }}"
-          class="inline pub-toggle-form"
-          id="pub-toggle-form-{{ deck.id }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label class="pub-toggle" title="Toggle Personal / Universal">
-        <input type="checkbox"
-               class="pub-toggle-input"
-               name="toggle"
-               {% if published %}checked{% endif %}
-               onchange="this.form.submit()">
-        <span class="pub-toggle-track" aria-hidden="true">
-          <span class="pub-toggle-label pub-toggle-label-left">
-            <span class="pub-toggle-icon">🏠</span>Personal
-          </span>
-          <span class="pub-toggle-label pub-toggle-label-right">
-            <span class="pub-toggle-icon">{{ globe_svg }}</span>Universal
-          </span>
-          <span class="pub-toggle-thumb"></span>
+    {# Edit mode: toggle lives OUTSIDE the deck form (via form="" is awkward
+       with Jinja), so it's a plain label + checkbox + fetch handler. No
+       page navigation on flip. #}
+    <label class="pub-toggle" title="Toggle Personal / Universal">
+      <input type="checkbox"
+             class="pub-toggle-input"
+             id="pub-toggle-{{ deck.id }}"
+             data-publish-url="{{ url_for('deck_publish', deck_id=deck.id) }}"
+             data-unpublish-url="{{ url_for('deck_unpublish', deck_id=deck.id) }}"
+             data-csrf="{{ csrf_token() }}"
+             {% if published %}checked{% endif %}>
+      <span class="pub-toggle-track" aria-hidden="true">
+        <span class="pub-toggle-label pub-toggle-label-left">
+          <span class="pub-toggle-icon">🏠</span>Personal
         </span>
-      </label>
-    </form>
+        <span class="pub-toggle-label pub-toggle-label-right">
+          <span class="pub-toggle-icon">{{ globe_svg }}</span>Universal
+        </span>
+        <span class="pub-toggle-thumb"></span>
+      </span>
+    </label>
     {% else %}
     {# /new mode: the checkbox is on the OUTER form (name="publish",
        value "1" when checked). deck_new reads request.form['publish']. #}
@@ -111,4 +109,34 @@
     <a class="btn-secondary" href="{{ url_for('home') }}">{{ 'Back' if published else 'Cancel' }}</a>
   </p>
 </form>
+
+{% if mode == 'edit' %}
+<script>
+(function () {
+  var cb = document.getElementById('pub-toggle-{{ deck.id }}');
+  if (!cb) return;
+  cb.addEventListener('change', function () {
+    var wantPublished = cb.checked;
+    var url = wantPublished ? cb.dataset.publishUrl : cb.dataset.unpublishUrl;
+    cb.disabled = true;
+    fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'X-CSRFToken': cb.dataset.csrf,
+        'Accept': 'application/json'
+      }
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      // Reload so the edit-lock / banner / disabled fields reflect new state.
+      window.location.reload();
+    }).catch(function () {
+      cb.checked = !wantPublished;
+      cb.disabled = false;
+      alert('Could not update publish state. Please try again.');
+    });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
