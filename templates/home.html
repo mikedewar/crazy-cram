@@ -9,11 +9,29 @@
 {% if total_decks == 0 and not folders %}
 <div class="empty-state">
   <p>You don’t have any decks yet.</p>
-  <p>A deck is a collection of question/answer cards you can study together. Make a folder first, then add decks inside it.</p>
+  <p>A deck is a collection of question/answer cards you can study together. Make a folder first, then add decks inside it — or browse the Universal folder for decks published by other users.</p>
   <p>
     <a class="btn" href="{{ url_for('folder_new') }}">+ New folder</a>
   </p>
 </div>
+
+{% if universal_count %}
+<section class="folders-section">
+  <ul class="deck-list">
+    <li class="folder-row-wrap">
+      {{ folder_swatch("universal", "home") }}
+      <a class="deck-row folder-row" href="{{ url_for('universal_index') }}">
+        <span class="deck-info">
+          <span class="deck-name">Universal</span>
+          <span class="deck-count">{{ universal_count }} deck{{ '' if universal_count == 1 else 's' }}</span>
+        </span>
+        <span class="folder-row-chev" aria-hidden="true">›</span>
+      </a>
+    </li>
+  </ul>
+</section>
+{% endif %}
+
 {% else %}
 
 <section class="folders-section">
@@ -21,6 +39,16 @@
     <h2>Folders</h2>
   </div>
   <ul class="deck-list">
+    <li class="folder-row-wrap">
+      {{ folder_swatch("universal", "home") }}
+      <a class="deck-row folder-row" href="{{ url_for('universal_index') }}">
+        <span class="deck-info">
+          <span class="deck-name">Universal</span>
+          <span class="deck-count">{{ universal_count }} deck{{ '' if universal_count == 1 else 's' }}</span>
+        </span>
+        <span class="folder-row-chev" aria-hidden="true">›</span>
+      </a>
+    </li>
     <li class="folder-row-wrap">
       {{ folder_swatch(none, "home") }}
       <a class="deck-row folder-row" href="{{ url_for('folder_unfiled') }}">

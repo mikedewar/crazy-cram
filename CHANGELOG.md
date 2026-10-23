@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.9.0 — 2026-10-23
+
+**Deck sharing — the Universal folder.** Any deck can be flipped to
+Universal via a new Personal/Universal slider on the deck edit (and
+new) page. Published decks appear in a global **Universal** folder
+on `/home` (grey globe swatch, sits above Unfiled). Inside
+`/universal`, everyone's published decks are grouped by creator:
+AliMonkeyBrains's group pinned to the top, then publishers in
+most-recent-publish order. Each tile has one button:
+
+- **Add To Decks** — snapshot-copies the deck and its cards into your
+  Unfiled, drops you straight on `/edit` to rename/recolour/refile.
+- **Already Added** — once you've copied a given source deck, you
+  can't copy it a second time.
+- **Unpublish** — owner's own tiles show this; admins see it on every
+  tile. Unpublishing hides the deck from `/universal` but existing
+  copies survive.
+
+**Edit-locked while published.** You can't rename, recolour, move, or
+add/edit/delete cards on a deck while it's published — flip it back
+to Personal first. Deleting the deck still works; downstream copies
+survive via `source_deck_id ON DELETE SET NULL` at the schema level.
+
+**Schema change:** migration `0011_deck_publish` adds `published_at`
+and `source_deck_id` to `deck`, wrapped in the `_fks_off()` guard that
+every `batch_alter_table` on a parent table needs. 22 new tests cover
+the full behaviour contract; test total 305 → 327.
+
 ## v1.8.3 — 2026-10-21
 
 **More breathing room between rows on `/stats`.** Table cells go from
