@@ -263,9 +263,22 @@ class Deck(db.Model):
     )
     last_opened_at = db.Column(db.DateTime, nullable=True, index=True)
     color = db.Column(db.String(9), nullable=True)
+    # NULL = personal; UTC timestamp = published to the Universal folder.
+    # See migration 0011_deck_publish.
+    published_at = db.Column(db.DateTime, nullable=True, index=True)
+    # Points at the original deck for copies made via /universal/<id>/add.
+    # ON DELETE SET NULL at the DB level, so deleting the original leaves
+    # downstream copies intact (per the published-deck sharing contract).
+    source_deck_id = db.Column(
+        db.Integer, db.ForeignKey("deck.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
 
     user = db.relationship("User", backref=db.backref("decks", cascade="all, delete-orphan", passive_deletes=True))
     folder = db.relationship("Folder", backref=db.backref("decks", passive_deletes=True))
+    source = db.relationship(
+        "Deck", remote_side=[id], foreign_keys=[source_deck_id],
+    )
     cards = db.relationship(
         "Card",
         backref="deck",
@@ -511,6 +524,17 @@ def _delete_deck(deck):
     db.session.delete(deck)
 
 
+def _abort_if_published(deck):
+    """403 when a deck is published and read-only edits are attempted.
+
+    Published decks are frozen at the moment of the flip: cards, name,
+    colour, folder are all immutable until the owner un-publishes. The
+    Personal/Universal slider and the delete flow stay available.
+    """
+    if deck.published_at is not None:
+        abort(403)
+
+
 def _owned_card_or_404(card_id):
     card = db.session.get(Card, card_id)
     if card is None or card.deck.user_id != current_user.id:
@@ -654,6 +678,9 @@ def deck_new():
 @login_required
 def deck_edit(deck_id):
     deck = _owned_deck_or_404(deck_id)
+    # Published decks are frozen; the form is still rendered read-only.
+    if request.method == "POST":
+        _abort_if_published(deck)
     form = DeckForm(obj=deck)
     if request.method == "GET":
         form.folder_id.data = "" if deck.folder_id is None else str(deck.folder_id)
@@ -665,13 +692,17 @@ def deck_edit(deck_id):
         db.session.commit()
         flash("Deck saved.", "info")
         return redirect(url_for("home"))
-    return render_template("deck_form.html", form=form, mode="edit", deck=deck, palette=DECK_PALETTE)
+    return render_template(
+        "deck_form.html", form=form, mode="edit", deck=deck,
+        palette=DECK_PALETTE, published=deck.published_at is not None,
+    )
 
 
 @app.route("/decks/<int:deck_id>/move", methods=["POST"])
 @login_required
 def deck_move(deck_id):
     deck = _owned_deck_or_404(deck_id)
+    _abort_if_published(deck)
     form = DeckMoveForm()
     if form.validate_on_submit():
         deck.folder_id = _resolve_folder_id(form.folder_id.data)
@@ -683,6 +714,8 @@ def deck_move(deck_id):
 @app.route("/decks/<int:deck_id>/delete", methods=["GET", "POST"])
 @login_required
 def deck_delete(deck_id):
+    # Delete stays available even when a deck is published — unpublishing
+    # survives on downstream copies via source_deck_id ON DELETE SET NULL.
     deck = _owned_deck_or_404(deck_id)
     if request.method == "POST":
         name = deck.name
@@ -691,6 +724,149 @@ def deck_delete(deck_id):
         flash(f"Deck “{name}” deleted.", "info")
         return redirect(url_for("home"))
     return render_template("deck_delete.html", deck=deck)
+
+
+@app.route("/decks/<int:deck_id>/publish", methods=["POST"])
+@login_required
+def deck_publish(deck_id):
+    """Flip a personal deck to Universal. Owner-only, idempotent."""
+    deck = _owned_deck_or_404(deck_id)
+    if deck.published_at is None:
+        deck.published_at = datetime.now(timezone.utc)
+        db.session.commit()
+        flash(f"“{deck.name}” published to Universal.", "info")
+    return redirect(request.referrer or url_for("deck_edit", deck_id=deck_id))
+
+
+@app.route("/decks/<int:deck_id>/unpublish", methods=["POST"])
+@login_required
+def deck_unpublish(deck_id):
+    """Remove a deck from Universal. Owner or admin.
+
+    Existing copies survive — source_deck_id stays pointing at this deck
+    (or SETs NULL if the original is later deleted). Idempotent.
+    """
+    deck = db.session.get(Deck, deck_id)
+    if deck is None:
+        abort(404)
+    if deck.user_id != current_user.id and not current_user.is_admin:
+        # 404 (not 403) when a non-owner non-admin probes an id they don't own.
+        abort(404)
+    if deck.published_at is not None:
+        deck.published_at = None
+        db.session.commit()
+        flash(f"“{deck.name}” removed from Universal.", "info")
+    return redirect(request.referrer or url_for("home"))
+
+
+# --- Universal (published decks shared across all users) --------------
+
+# AliMonkeyBrains's group is pinned to the top of /universal, then the
+# rest of the publishers in most-recent-publish order.
+_UNIVERSAL_PINNED_USERNAME = "AliMonkeyBrains"
+
+
+@app.route("/universal")
+@login_required
+def universal_index():
+    """Published decks, grouped by creator.
+
+    Group order: AliMonkeyBrains first (if present), then other creators
+    ordered by their most-recent publish time (newest group first).
+    Within each group: decks by published_at desc (youngest first).
+    """
+    published = (
+        Deck.query.filter(Deck.published_at.isnot(None))
+        .order_by(Deck.published_at.desc(), Deck.id.desc())
+        .all()
+    )
+    # Which of the user's decks were copied from which source?
+    already_added_ids = set()
+    for d in Deck.query.filter(
+        Deck.user_id == current_user.id,
+        Deck.source_deck_id.isnot(None),
+    ).all():
+        already_added_ids.add(d.source_deck_id)
+
+    # Group by publisher.
+    groups_by_user = {}
+    for deck in published:
+        groups_by_user.setdefault(deck.user_id, []).append(deck)
+
+    # Order the groups.
+    user_ids = list(groups_by_user.keys())
+    users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
+    # Latest publish time per group (first entry's published_at — already
+    # sorted desc).
+    def _latest(uid):
+        return groups_by_user[uid][0].published_at
+
+    pinned_uid = None
+    for uid, u in users.items():
+        if u.username == _UNIVERSAL_PINNED_USERNAME:
+            pinned_uid = uid
+            break
+    sorted_uids = sorted(
+        [uid for uid in user_ids if uid != pinned_uid],
+        key=_latest, reverse=True,
+    )
+    if pinned_uid is not None:
+        sorted_uids.insert(0, pinned_uid)
+
+    groups = [
+        {
+            "user": users[uid],
+            "decks": groups_by_user[uid],
+        }
+        for uid in sorted_uids
+    ]
+    return render_template(
+        "universal.html",
+        groups=groups,
+        already_added_ids=already_added_ids,
+        current_user_id=current_user.id,
+    )
+
+
+@app.route("/universal/<int:deck_id>/add", methods=["POST"])
+@login_required
+def universal_add(deck_id):
+    """Snapshot-copy a published deck into Unfiled; redirect to /edit.
+
+    - Only works on currently-published decks.
+    - Each user can add any given source once (source_deck_id uniqueness
+      is enforced in-code, not at the schema level).
+    """
+    source = db.session.get(Deck, deck_id)
+    if source is None or source.published_at is None:
+        abort(404)
+    existing = Deck.query.filter_by(
+        user_id=current_user.id, source_deck_id=source.id,
+    ).first()
+    if existing is not None:
+        flash(f"You already have a copy of “{source.name}”.", "info")
+        return redirect(url_for("deck_edit", deck_id=existing.id))
+    copy = Deck(
+        user_id=current_user.id,
+        name=source.name,
+        folder_id=None,  # lands in Unfiled; user retitles/moves on /edit
+        color=source.color,
+        source_deck_id=source.id,
+    )
+    db.session.add(copy)
+    db.session.flush()  # populate copy.id
+    source_cards = (
+        Card.query.filter_by(deck_id=source.id)
+        .order_by(Card.created_at.asc(), Card.id.asc())
+        .all()
+    )
+    for c in source_cards:
+        db.session.add(Card(
+            deck_id=copy.id, question=c.question, answer=c.answer,
+        ))
+    db.session.commit()
+    flash(f"Copied “{source.name}” into your decks.", "info")
+    return redirect(url_for("deck_edit", deck_id=copy.id))
 
 
 # --- Folders ------------------------------------------------------------
@@ -826,6 +1002,9 @@ def folder_delete(folder_id):
 @login_required
 def deck_cards(deck_id):
     deck = _owned_deck_or_404(deck_id)
+    # Adding cards to a published deck is blocked; GET renders read-only.
+    if request.method == "POST":
+        _abort_if_published(deck)
     form = CardForm()
     if form.validate_on_submit():
         card = Card(deck_id=deck.id, question=form.question.data, answer=form.answer.data)
@@ -855,6 +1034,8 @@ def deck_cards(deck_id):
 @login_required
 def card_edit(card_id):
     card = _owned_card_or_404(card_id)
+    if request.method == "POST":
+        _abort_if_published(card.deck)
     form = CardForm(obj=card)
 
     # Optional round-trip: if the caller passed ?return_to=<session_id> and
@@ -885,6 +1066,7 @@ def card_edit(card_id):
 @login_required
 def card_delete(card_id):
     card = _owned_card_or_404(card_id)
+    _abort_if_published(card.deck)
     deck_id = card.deck_id
     db.session.delete(card)
     db.session.commit()
