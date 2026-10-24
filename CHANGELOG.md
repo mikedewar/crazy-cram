@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.9.10 — 2026-10-24
+
+**Version string under the GitHub icon in the sidebar.** `v<X.Y.Z>`
+sits at the very bottom of every page, small and dimmed so it stays
+out of the way. Also makes "which version am I actually looking
+at?" visible at a glance — relevant after yesterday's HTML-cache
+rodeo. `app_version` plumbed through the base context; sidebar
+`:nth-last-child(2)` selector updated so GitHub still anchors to
+the bottom cluster above the version string.
+
 ## v1.9.9 — 2026-10-24
 
 **Dynamic HTML pages are no longer browser-cached.** v1.9.8 shipped

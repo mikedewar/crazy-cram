@@ -52,6 +52,7 @@ _ASSET_VERSION = f"{VERSION}-{int(_STYLE_FILE.stat().st_mtime)}" if _STYLE_FILE.
 def _inject_asset_version():
     return {
         "asset_version": _ASSET_VERSION,
+        "app_version": VERSION,
         "folder_palette": FOLDER_PALETTE,
         "unfiled_swatch": UNFILED_SWATCH,
     }

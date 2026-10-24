@@ -49,12 +49,22 @@ a { color: #4c8bf5; }
 }
 .sidebar-btn:hover { background: #8883; border-color: #8886; }
 .sidebar-btn svg { display: block; }
-/* GitHub button sits at the bottom of the sidebar. */
-.sidebar > .sidebar-btn:last-child { margin-top: auto; }
+/* Version label pinned to the sidebar's absolute bottom; GitHub button
+   sits directly above it. */
+.sidebar-version {
+  margin-top: .2rem;
+  font-size: .62rem;
+  letter-spacing: .02em;
+  opacity: .4;
+  text-align: center;
+  user-select: none;
+}
+/* GitHub button sits at the bottom of the sidebar (above version). */
+.sidebar > .sidebar-btn:nth-last-child(2) { margin-top: auto; }
 
 /* Admin icon (admins only) hugs the GitHub button at the bottom. */
 .sidebar > .sidebar-admin { margin-top: auto; }
-.sidebar > .sidebar-admin ~ .sidebar-btn:last-child { margin-top: 0; }
+.sidebar > .sidebar-admin ~ .sidebar-btn:nth-last-child(2) { margin-top: 0; }
 
 /* Stats icon lives at the top of the bottom cluster — above admin
    (for admins) and above GitHub (for everyone). */
