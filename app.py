@@ -790,13 +790,6 @@ def universal_index():
     )
     published = [d for (d, _n) in rows]
     card_counts = {d.id: n for (d, n) in rows}
-    # Which of the user's decks were copied from which source?
-    already_added_ids = set()
-    for d in Deck.query.filter(
-        Deck.user_id == current_user.id,
-        Deck.source_deck_id.isnot(None),
-    ).all():
-        already_added_ids.add(d.source_deck_id)
 
     # Group by publisher.
     groups_by_user = {}
@@ -839,7 +832,6 @@ def universal_index():
         "universal.html",
         groups=groups,
         card_counts=card_counts,
-        already_added_ids=already_added_ids,
         current_user_id=current_user.id,
         user_folders=user_folders,
     )
@@ -851,8 +843,8 @@ def universal_add(deck_id):
     """Snapshot-copy a published deck into Unfiled; redirect to /edit.
 
     - Only works on currently-published decks.
-    - Each user can add any given source once (source_deck_id uniqueness
-      is enforced in-code, not at the schema level).
+    - Users may add the same source more than once; each add creates
+      a fresh independent copy.
     """
     source = db.session.get(Deck, deck_id)
     if source is None or source.published_at is None:
@@ -869,12 +861,6 @@ def universal_add(deck_id):
         if folder is None or folder.user_id != current_user.id:
             abort(404)  # cross-user → 404, per isolation rule
         dest_folder_id = folder.id
-    existing = Deck.query.filter_by(
-        user_id=current_user.id, source_deck_id=source.id,
-    ).first()
-    if existing is not None:
-        flash(f"You already have a copy of “{source.name}”.", "info")
-        return redirect(url_for("deck_edit", deck_id=existing.id))
     copy = Deck(
         user_id=current_user.id,
         name=source.name,

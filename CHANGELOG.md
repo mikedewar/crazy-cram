@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.9.7 — 2026-10-24
+
+**`/universal`: trash-can Unpublish, no more "Already Added".**
+Unpublish is now the same `.icon-btn-danger` trash-can SVG used
+elsewhere (owners get it; admins viewing someone else's deck get
+"Unpublish (admin)" as the aria-label). The "Already Added"
+button is gone — Save-to-folder is always available on non-owner
+tiles. The one-copy-per-source cap was lifted at the same time, so
+re-saving a deck now creates an independent second copy (e.g. into
+a different folder). The `already_added_ids` plumbing (view +
+template) was dropped since nothing reads it anymore. Two existing
+tests flipped to the new intent + docstring rule 5 updated.
+
 ## v1.9.6 — 2026-10-24
 
 **"Save to folder" is now a floppy-disk icon button**, using the

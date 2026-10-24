@@ -9,8 +9,8 @@ Behaviour contract (from Mike's spec):
   4. /universal groups by publisher. AliMonkeyBrains's group pinned on
      top, then publishers ordered by most-recent publish time. Decks
      within a group: youngest publish first.
-  5. "Add To Decks" → "Already Added" once a copy exists. Cannot copy
-     twice.
+  5. Save-to-folder picker is always present on non-owner tiles.
+     Users may copy the same source multiple times (one per add).
   6. Owner sees their own published decks alongside everyone else's
      with an "Unpublish" button.
   7. published_at = moment of flip; unpublish leaves existing copies
@@ -249,7 +249,10 @@ def test_universal_grouping_pins_alimonkeybrains_then_recency(client, invite, ap
 
 # ------------------------------------------------------------------ 5.
 
-def test_cannot_add_the_same_source_twice(client, invite, app):
+def test_adding_the_same_source_twice_makes_two_copies(client, invite, app):
+    """v1.9.7 lifted the one-copy cap: each /universal/<id>/add creates
+    an independent copy, so a user can save the same source multiple
+    times (e.g. into different folders)."""
     _register(client, invite, "alice")
     source = _make_deck(client, "French")
     client.post(f"/decks/{source}/publish")
@@ -261,24 +264,27 @@ def test_cannot_add_the_same_source_twice(client, invite, app):
     with app.app.app_context():
         bob = app.User.query.filter_by(username="bob").one()
         copies = app.Deck.query.filter_by(user_id=bob.id, source_deck_id=source).count()
-        assert copies == 1
+        assert copies == 2
 
 
-def test_universal_renders_already_added_button(client, invite, app):
+def test_universal_always_shows_save_to_folder(client, invite, app):
+    """Picker is always present on non-owner tiles; even after a copy
+    exists, the user can save it again (into a different folder, say).
+    No 'Already Added' button."""
     _register(client, invite, "alice")
     source = _make_deck(client, "French")
     client.post(f"/decks/{source}/publish")
     client.post("/logout")
 
     _register(client, invite, "bob")
-    # First visit: Save to folder picker is present.
     r1 = client.get("/universal")
     assert b"Save to folder" in r1.data
     assert b"Already Added" not in r1.data
 
     client.post(f"/universal/{source}/add")
     r2 = client.get("/universal")
-    assert b"Already Added" in r2.data
+    assert b"Save to folder" in r2.data
+    assert b"Already Added" not in r2.data
 
 
 # ------------------------------------------------------------------ 6.
