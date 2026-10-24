@@ -1,5 +1,30 @@
 # Changelog
 
+## v1.9.13 — 2026-10-24
+
+**Globe-with-strike actually renders now — real fix.** v1.9.12 was
+chasing the wrong cause. Reproduced the bug in Chromium with an
+isolation test: inside a `<button class="icon-btn">` the SVG rect
+measures **0×18** instead of 18×18. The HTML `width="18"` attribute
+is an *intrinsic size* that flex layout refuses to honor on an SVG
+child; the floppy-save version works because its parent is a
+`<summary>`, which doesn't use the same flex-child sizing path for
+replaced elements.
+
+`.icon-btn-danger svg` already had `width: 18px; min-width: 18px;
+flex-shrink: 0;` as a one-off workaround. Promoted it to
+`.icon-btn svg` so every icon button gets a pinned size:
+
+```css
+.icon-btn svg {
+  width: 18px; height: 18px; min-width: 18px;
+  flex-shrink: 0; stroke: #222;
+}
+```
+
+Verified in headless Chromium: `unpub-svg rect` went from 0×18 to
+18×18 and the icon paints visibly on a pale tile.
+
 ## v1.9.12 — 2026-10-24
 
 **Globe-with-strike icon finally renders.** v1.9.11's `color: #222` on

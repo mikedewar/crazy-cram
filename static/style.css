@@ -135,20 +135,20 @@ a.folder-row:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
   background: transparent; border-color: #8886; color: #222;
 }
 .icon-btn:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
-/* Force SVG stroke directly. SVG `stroke="currentColor"` fails to resolve
-   on <button class="icon-btn"> in Firefox (UA button rendering swallows
-   it), so the icon disappears on pale tiles. The hardcoded stroke on the
-   delete-card SVG is a workaround for the same bug; this is the general
-   fix. */
-.icon-btn svg { stroke: #222; }
-.icon-btn-danger:hover { color: #c3413a; background: #c3413a11; border-color: #c3413a55; }
-.icon-btn-danger:hover svg { stroke: #c3413a; }
-.icon-btn-danger svg {
+/* .icon-btn is `display: inline-flex`. Inside a <button>, an SVG child
+   with only an HTML width attribute collapses to 0×18 (the SVG's intrinsic
+   width is 0 and flex won't honor the attribute). Pin it in CSS. The
+   pre-existing `.icon-btn-danger svg` rule was a one-off workaround for
+   this exact bug; promoting it to every `.icon-btn svg` is the real fix. */
+.icon-btn svg {
     width: 18px;
     height: 18px;
     min-width: 18px;
     flex-shrink: 0;
+    stroke: #222;
 }
+.icon-btn-danger:hover { color: #c3413a; background: #c3413a11; border-color: #c3413a55; }
+.icon-btn-danger:hover svg { stroke: #c3413a; }
 .row-delete {
   position: absolute; z-index: 1;
   top: 50%; right: .5rem; transform: translateY(-50%);
