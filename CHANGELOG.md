@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.9.11 — 2026-10-24
+
+**Fix: `.icon-btn` SVGs now actually render when the button is a
+`<button>`.** On the globe-with-strike Unpublish button, Mike saw
+"blue square on hover, no icon at rest" — because `.icon-btn`
+set `color: inherit`, but a `<button>` loses `inherit` to its UA
+style and SVG `currentColor` resolved to white (invisible on pale
+tiles). Set `.icon-btn { color: #222 }` explicitly instead; works
+across `<a>`/`<summary>`/`<button>` uniformly. Also added explicit
+`background: transparent; border-color: #8886` to `.icon-btn:hover`
+so it stops picking up the global blue-button hover.
+
+Visible result: Unpublish globe shows up as a dark icon on all
+tiles. Delete-card button on `/decks/<id>/cards` still works (its
+SVG hard-coded `stroke="#000000"` as a prior workaround for this
+same cause; left alone, black ≈ #222).
+
 ## v1.9.10 — 2026-10-24
 
 **Version string under the GitHub icon in the sidebar.** `v<X.Y.Z>`

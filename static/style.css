@@ -121,11 +121,19 @@ a.folder-row:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 2rem; height: 2rem; border-radius: .375rem;
-  color: inherit; text-decoration: none;
+  /* color: #222 — not `inherit`. On a <button>, `inherit` loses to
+     Firefox's user-agent stroke on buttons, so SVG currentColor ends
+     up white on pale tiles and the icon disappears. Setting it
+     explicitly fixes the <button> case without breaking the <a> /
+     <summary> cases, which were just happening to work. */
+  color: #222; text-decoration: none;
   border: 1px solid transparent; background: transparent;
   opacity: .55; transition: opacity .1s, background .1s, color .1s, border-color .1s;
 }
-.icon-btn:hover, .icon-btn:focus-visible { opacity: 1; outline: none; }
+.icon-btn:hover, .icon-btn:focus-visible {
+  opacity: 1; outline: none;
+  background: transparent; border-color: #8886; color: #222;
+}
 .icon-btn:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
 .icon-btn-danger:hover { color: #c3413a; background: #c3413a11; border-color: #c3413a55; }
 .icon-btn-danger svg {
