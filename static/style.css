@@ -839,12 +839,11 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 .save-to-folder-summary {
   list-style: none;
   cursor: pointer;
-  padding: .3rem .7rem;
-  font-size: .8rem;
 }
 .save-to-folder-summary::-webkit-details-marker { display: none; }
 .save-to-folder-picker[open] > .save-to-folder-summary {
   outline: 2px solid #4c8bf5; outline-offset: 2px;
+  opacity: 1;
 }
 .save-to-folder-popover {
   position: absolute; top: calc(100% + .4rem); left: 0;

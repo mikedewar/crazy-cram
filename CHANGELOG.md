@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.9.6 — 2026-10-24
+
+**"Save to folder" is now a floppy-disk icon button**, using the
+same `.icon-btn` chrome as the existing pencil/trash controls so it
+sits visually in the row rather than crowding it with text. Full
+"Save to folder" string lives in `aria-label` + `title` for
+accessibility and tooltip. No behavioural change; same picker opens
+on click.
+
 ## v1.9.5 — 2026-10-23
 
 **Fix: admins now see "Save to folder" on `/universal`.** v1.9.4's
