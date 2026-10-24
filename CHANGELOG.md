@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.9.12 — 2026-10-24
+
+**Globe-with-strike icon finally renders.** v1.9.11's `color: #222` on
+`.icon-btn` fixed the hover (no more blue square) but the SVG strokes
+were still invisible — Firefox's UA button rendering swallows `color`
+before SVG `currentColor` can see it. Target the SVG directly:
+
+```
+.icon-btn svg { stroke: #222; }
+.icon-btn-danger:hover svg { stroke: #c3413a; }
+```
+
+The hardcoded `stroke="#000000"` on the delete-card SVG was a prior
+workaround for exactly this bug; the new rule generalises the fix so
+it applies to every `.icon-btn` SVG without template changes.
+
 ## v1.9.11 — 2026-10-24
 
 **Fix: `.icon-btn` SVGs now actually render when the button is a

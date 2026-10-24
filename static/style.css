@@ -135,7 +135,14 @@ a.folder-row:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
   background: transparent; border-color: #8886; color: #222;
 }
 .icon-btn:focus-visible { outline: 2px solid #4c8bf5; outline-offset: 1px; }
+/* Force SVG stroke directly. SVG `stroke="currentColor"` fails to resolve
+   on <button class="icon-btn"> in Firefox (UA button rendering swallows
+   it), so the icon disappears on pale tiles. The hardcoded stroke on the
+   delete-card SVG is a workaround for the same bug; this is the general
+   fix. */
+.icon-btn svg { stroke: #222; }
 .icon-btn-danger:hover { color: #c3413a; background: #c3413a11; border-color: #c3413a55; }
+.icon-btn-danger:hover svg { stroke: #c3413a; }
 .icon-btn-danger svg {
     width: 18px;
     height: 18px;
