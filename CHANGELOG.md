@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.9.8 — 2026-10-24
+
+**Unpublish icon is now a globe with a line through it, not a trash
+can.** The trash-can read as "destroy this deck" but Unpublish only
+flips the deck private — the owner still has it. The new icon
+(circle + equator + meridian, matching the universal glyph used
+elsewhere, with a diagonal strike) says "remove from Universal",
+which is what the action actually does. `.icon-btn-danger` dropped
+too, since the hover state was reinforcing the destruction framing.
+`aria-label`/`title` unchanged ("Unpublish" / "Unpublish (admin)")
+so existing tests and screen readers see the same text.
+
 ## v1.9.7 — 2026-10-24
 
 **`/universal`: trash-can Unpublish, no more "Already Added".**
