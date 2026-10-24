@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.9.9 — 2026-10-24
+
+**Dynamic HTML pages are no longer browser-cached.** v1.9.8 shipped
+the globe-with-strike Unpublish icon, but Mike's Firefox kept
+serving a cached pre-v1.9.4 copy of `/universal` for ten-plus
+minutes after deploy — only the "Save to folder" icon rendered on
+each tile, no Unpublish. The static CSS cache-buster
+(`?v=<VERSION>-<mtime>`) does nothing if the HTML itself is stale.
+Added an `after_request` that stamps `Cache-Control: no-store` on
+every non-static HTML response. CSRF-stamped per-user pages
+shouldn't be cached anyway; static assets are untouched (they
+still cache aggressively via the existing cache-buster).
+
 ## v1.9.8 — 2026-10-24
 
 **Unpublish icon is now a globe with a line through it, not a trash

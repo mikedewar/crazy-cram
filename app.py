@@ -131,6 +131,18 @@ def _rate_limited(e):
     return render_template("rate_limited.html", detail=str(e.description)), 429
 
 
+@app.after_request
+def _no_html_cache(response):
+    # HTML pages carry per-user content + CSRF tokens; cached HTML is
+    # how users end up looking at a UI two deploys stale. Static assets
+    # (served under /static) are cache-busted via `?v=<VERSION>-mtime`
+    # in base.html, so they can and should be cached by the browser.
+    ct = response.headers.get("Content-Type", "")
+    if ct.startswith("text/html") and not request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 # --- Structured event logging ---------------------------------------
 # One JSON line per event on stderr. Gunicorn/systemd captures it into
 # the journal; from there, `journalctl -u crazy-cram` gives grep-able
