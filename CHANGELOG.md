@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.9.14 — 2026-10-25
+
+**Personal/Universal toggle: house icon matches the globe's line-drawn
+style.** The slider had an inline SVG globe on the right (14×14,
+stroked, no fill) but a 🏠 colour emoji on the left — jarring next to
+every other sidebar/button icon. Replaced the emoji with a matching
+inline SVG house: same `viewBox="0 0 24 24"`, `width/height=14`,
+`fill="none"`, `stroke="currentColor"`, `stroke-width="2"`. Both the
+`/decks/new` and `/decks/<id>/edit` sliders use the shared `house_svg`
+set-block. Verified by rendering `/decks/48/edit` through the Flask
+test client and screenshotting in headless Chromium.
+
 ## v1.9.13 — 2026-10-24
 
 **Globe-with-strike actually renders now — real fix.** v1.9.12 was
