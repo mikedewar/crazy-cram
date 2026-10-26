@@ -93,6 +93,22 @@
     {% endif %}
   </div>
 
+  {# Universal category picker. On /new it's a plain field inside the outer
+     form; the server reads it only when publish=1. On /edit it's rendered
+     outside this form as a block below, so no nested-forms trap. #}
+  {% if mode == 'new' %}
+  <p class="universal-category-row">
+    <label for="universal-category-new">Universal category</label><br>
+    <select name="universal_category" id="universal-category-new">
+      <option value="">Unfiled</option>
+      {% for c in universal_categories %}
+      <option value="{{ c.id }}">{{ c.name }}</option>
+      {% endfor %}
+    </select>
+    <span class="muted">Only used if you publish on save.</span>
+  </p>
+  {% endif %}
+
   {% if palette %}
   {% set current_color = (deck.color if deck else '') or form.color.data %}
   <p>
@@ -119,21 +135,61 @@
 </form>
 
 {% if mode == 'edit' %}
+{# Category picker — rendered OUTSIDE the main form (nested forms are
+   invalid). When NOT published, posting here acts as publish-with-category
+   (deck_publish treats "transitioning to published" as a publish).
+   When ALREADY published, posting changes the category in place without
+   un-publishing. #}
+<section class="pub-category-panel">
+  <form method="post" action="{{ url_for('deck_publish', deck_id=deck.id) }}"
+        class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="universal-category-edit">Universal category</label>
+    <select name="universal_category" id="universal-category-edit"
+            {% if not published %}disabled{% endif %}>
+      <option value="" {% if published and not deck.universal_category_id %}selected{% endif %}>Unfiled</option>
+      {% for c in universal_categories %}
+      <option value="{{ c.id }}"
+              {% if published and deck.universal_category_id == c.id %}selected{% endif %}>
+        {{ c.name }}
+      </option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-secondary"
+            {% if not published %}disabled{% endif %}>
+      Save category
+    </button>
+    {% if not published %}
+    <span class="muted">Flip the slider to Universal to pick a category.</span>
+    {% endif %}
+  </form>
+</section>
+
 <script>
 (function () {
   var cb = document.getElementById('pub-toggle-{{ deck.id }}');
   if (!cb) return;
+  var picker = document.getElementById('universal-category-edit');
   cb.addEventListener('change', function () {
     var wantPublished = cb.checked;
     var url = wantPublished ? cb.dataset.publishUrl : cb.dataset.unpublishUrl;
     cb.disabled = true;
+    var body = null;
+    var headers = {
+      'X-CSRFToken': cb.dataset.csrf,
+      'Accept': 'application/json'
+    };
+    if (wantPublished && picker) {
+      // Carry the picker's selection into the publish request so the
+      // deck lands in the chosen category atomically.
+      body = new URLSearchParams();
+      body.append('universal_category', picker.value || '');
+    }
     fetch(url, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: {
-        'X-CSRFToken': cb.dataset.csrf,
-        'Accept': 'application/json'
-      }
+      headers: headers,
+      body: body
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       // Reload so the edit-lock / banner / disabled fields reflect new state.

@@ -49,4 +49,62 @@
   <p class="muted">No users yet.</p>
   {% endif %}
 </section>
+
+<section class="account-panel">
+  <h2>Universal categories</h2>
+  <p class="muted">
+    Sections at the top of <a href="{{ url_for('universal_index') }}">/universal</a>.
+    Publishers pick one when they publish a deck; everything else lands in Unfiled.
+    Deleting a category moves its decks back to Unfiled — it doesn't un-publish them.
+  </p>
+
+  {% if category_rows %}
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th class="num">Decks</th>
+        <th>Rename</th>
+        <th>Delete</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in category_rows %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td class="num">{{ row.deck_count }}</td>
+        <td>
+          <form method="post"
+                action="{{ url_for('universal_category_rename', category_id=row.id) }}"
+                class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="name" value="{{ row.name }}"
+                   maxlength="64" required>
+            <button type="submit" class="btn-secondary">Rename</button>
+          </form>
+        </td>
+        <td>
+          <form method="post"
+                action="{{ url_for('universal_category_delete', category_id=row.id) }}"
+                class="inline"
+                onsubmit="return confirm('Delete “{{ row.name }}”? Its {{ row.deck_count }} deck(s) will move to Unfiled.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No categories yet.</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('universal_category_new') }}" class="inline">
+    {{ new_category_form.hidden_tag() }}
+    {{ new_category_form.name(placeholder="New category name", maxlength=64) }}
+    <button type="submit" class="btn-secondary">Add category</button>
+    {% for e in new_category_form.name.errors %}<span class="err">{{ e }}</span>{% endfor %}
+  </form>
+</section>
 {% endblock %}

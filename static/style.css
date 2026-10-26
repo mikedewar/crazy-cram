@@ -843,6 +843,14 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 }
 
 /* --- Universal page tiles ------------------------------------------- */
+.universal-category { margin: 1.4rem 0 2rem; }
+.universal-category-head {
+  font-size: 1.3rem;
+  margin: .4rem 0 .75rem;
+  padding-bottom: .3rem;
+  border-bottom: 2px solid #0003;
+}
+.universal-unfiled { margin-top: 2rem; }
 .universal-group { margin-bottom: 1.6rem; }
 .universal-group-head {
   font-size: 1.05rem;
@@ -850,6 +858,18 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   padding-bottom: .25rem;
   border-bottom: 1px solid #0002;
 }
+.pub-category-panel {
+  margin: .25rem 0 1.2rem;
+  padding: .6rem .75rem;
+  border: 1px solid #0001;
+  border-radius: 6px;
+  background: #0001;
+}
+.pub-category-panel label { margin-right: .5rem; }
+.pub-category-panel select { margin-right: .5rem; }
+.universal-category-row { margin: .4rem 0 1rem; }
+.universal-category-row label { font-weight: 600; }
+.universal-category-row select { margin-right: .5rem; }
 
 /* --- Save-to-folder picker (universal page) ------------------------- */
 .save-to-folder-picker { position: relative; display: inline-block; }

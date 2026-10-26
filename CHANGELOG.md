@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.10.0 — 2026-10-26
+
+**Universal categories.** Admin-managed sections at the top of
+`/universal` — seeded with *German vocab lists* and *Latin vocab lists*.
+When publishing a deck (slider → Universal on `/new` or `/edit`), the
+publisher picks one of the categories or leaves it as *Unfiled*. The
+category is editable in place on `/edit` while the deck stays published.
+
+`/universal` renders one flat-tile section per category first (newest
+publish-time first inside each), then a per-user *Unfiled* section with
+the previous grouping and the AliMonkeyBrains pin preserved there.
+
+Admin gets a new table on `/admin` to create / rename / delete
+categories; deleting falls affected decks back to Unfiled via
+`ON DELETE SET NULL` on the FK — it doesn't un-publish them.
+
+Schema: new `universal_category` table + nullable
+`deck.universal_category_id` FK with `SET NULL` (migration 0012; batch
+rebuild wrapped in `_fks_off()` per the 0011 pattern).
+
 ## v1.9.14 — 2026-10-25
 
 **Personal/Universal toggle: house icon matches the globe's line-drawn

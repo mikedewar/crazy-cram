@@ -1,5 +1,78 @@
 {% extends "base.html" %}
 {% block title %}Universal — Crazy-Cram{% endblock %}
+
+{%- macro deck_tile(deck, card_count, user_folders, current_user_id, show_admin_actions=True) -%}
+  {%- set is_owner = deck.user_id == current_user_id -%}
+  {%- set did = deck.id -%}
+  {%- set r1 = (did * 37) % 7 - 3 -%}
+  {%- set r2 = (did * 53) % 11 - 10 -%}
+  {%- set dx1 = (did * 17) % 5 - 2 -%}
+  {%- set dy1 = (did * 23) % 4 + 1 -%}
+  {%- set dx2 = (did * 29) % 7 - 5 -%}
+  {%- set dy2 = (did * 31) % 4 + 3 -%}
+  <li class="deck-tile" style="{% if deck.color %}--deck-color: {{ deck.color }};{% endif %}--r1: {{ r1 }}deg;--r2: {{ r2 }}deg;--dx1: {{ dx1 }}px;--dy1: {{ dy1 }}px;--dx2: {{ dx2 }}px;--dy2: {{ dy2 }}px;">
+    <div class="deck-tile-name">
+      <span class="deck-name">{{ deck.name }}</span>
+      <span class="deck-count">{{ card_count }} card{{ '' if card_count == 1 else 's' }}</span>
+      <span class="deck-count">published {{ deck.published_at.strftime('%Y-%m-%d') }}</span>
+    </div>
+    <div class="deck-tile-actions">
+      {% if not is_owner %}
+      <details class="save-to-folder-picker">
+        <summary class="icon-btn save-to-folder-summary"
+                 aria-label="Save to folder"
+                 title="Save to folder">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round"
+               aria-hidden="true">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+        </summary>
+        <div class="save-to-folder-popover">
+          <form method="post"
+                action="{{ url_for('universal_add', deck_id=deck.id) }}"
+                class="save-to-folder-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <ul class="save-to-folder-list" role="menu">
+              <li>
+                <button type="submit" name="folder_id" value=""
+                        class="save-to-folder-option">Unfiled</button>
+              </li>
+              {% for f in user_folders %}
+              <li>
+                <button type="submit" name="folder_id" value="{{ f.id }}"
+                        class="save-to-folder-option">
+                  <span class="save-to-folder-swatch"
+                        style="background-color: {{ f.color or '#8a8a8a' }};"
+                        aria-hidden="true"></span>
+                  <span>{{ f.name }}</span>
+                </button>
+              </li>
+              {% endfor %}
+            </ul>
+          </form>
+        </div>
+      </details>
+      {% endif %}
+      {% if show_admin_actions and (is_owner or current_user.is_admin) %}
+      <form method="post"
+            action="{{ url_for('deck_unpublish', deck_id=deck.id) }}"
+            class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="icon-btn"
+                aria-label="{{ 'Unpublish' if is_owner else 'Unpublish (admin)' }}"
+                title="{{ 'Unpublish' if is_owner else 'Unpublish (admin)' }}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path><line x1="4" y1="20" x2="20" y2="4"></line></svg>
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </li>
+{%- endmacro -%}
+
 {% block content %}
 <div class="page-head">
   <h1>Universal</h1>
@@ -8,92 +81,45 @@
   </div>
 </div>
 
-{% if not groups %}
+{% set any_category_decks = category_sections | selectattr('decks') | list %}
+
+{% if not any_category_decks and not unfiled_groups %}
 <div class="empty-state">
   <p>No published decks yet. Flip any of your decks to Universal from
      its edit page to share it here.</p>
 </div>
 {% else %}
 
-{% for g in groups %}
-<section class="universal-group">
-  <h2 class="universal-group-head">{{ g.user.username }}</h2>
+{# --- Category sections (admin-managed, newest publish-time first inside). --- #}
+{% for section in category_sections %}
+{% if section.decks %}
+<section class="universal-category">
+  <h2 class="universal-category-head">{{ section.category.name }}</h2>
   <ul class="deck-grid">
-    {% for deck in g.decks %}
-    {% set is_owner = deck.user_id == current_user_id %}
-    {%- set did = deck.id -%}
-    {%- set r1 = (did * 37) % 7 - 3 -%}
-    {%- set r2 = (did * 53) % 11 - 10 -%}
-    {%- set dx1 = (did * 17) % 5 - 2 -%}
-    {%- set dy1 = (did * 23) % 4 + 1 -%}
-    {%- set dx2 = (did * 29) % 7 - 5 -%}
-    {%- set dy2 = (did * 31) % 4 + 3 -%}
-    {%- set card_count = card_counts.get(deck.id, 0) -%}
-    <li class="deck-tile" style="{% if deck.color %}--deck-color: {{ deck.color }};{% endif %}--r1: {{ r1 }}deg;--r2: {{ r2 }}deg;--dx1: {{ dx1 }}px;--dy1: {{ dy1 }}px;--dx2: {{ dx2 }}px;--dy2: {{ dy2 }}px;">
-      <div class="deck-tile-name">
-        <span class="deck-name">{{ deck.name }}</span>
-        <span class="deck-count">{{ card_count }} card{{ '' if card_count == 1 else 's' }}</span>
-        <span class="deck-count">published {{ deck.published_at.strftime('%Y-%m-%d') }}</span>
-      </div>
-      <div class="deck-tile-actions">
-        {% if not is_owner %}
-        <details class="save-to-folder-picker">
-          <summary class="icon-btn save-to-folder-summary"
-                   aria-label="Save to folder"
-                   title="Save to folder">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round"
-                 aria-hidden="true">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-              <polyline points="17 21 17 13 7 13 7 21"></polyline>
-              <polyline points="7 3 7 8 15 8"></polyline>
-            </svg>
-          </summary>
-          <div class="save-to-folder-popover">
-            <form method="post"
-                  action="{{ url_for('universal_add', deck_id=deck.id) }}"
-                  class="save-to-folder-form">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <ul class="save-to-folder-list" role="menu">
-                <li>
-                  <button type="submit" name="folder_id" value=""
-                          class="save-to-folder-option">Unfiled</button>
-                </li>
-                {% for f in user_folders %}
-                <li>
-                  <button type="submit" name="folder_id" value="{{ f.id }}"
-                          class="save-to-folder-option">
-                    <span class="save-to-folder-swatch"
-                          style="background-color: {{ f.color or '#8a8a8a' }};"
-                          aria-hidden="true"></span>
-                    <span>{{ f.name }}</span>
-                  </button>
-                </li>
-                {% endfor %}
-              </ul>
-            </form>
-          </div>
-        </details>
-        {% endif %}
-        {% if is_owner or current_user.is_admin %}
-        <form method="post"
-              action="{{ url_for('deck_unpublish', deck_id=deck.id) }}"
-              class="inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="icon-btn"
-                  aria-label="{{ 'Unpublish' if is_owner else 'Unpublish (admin)' }}"
-                  title="{{ 'Unpublish' if is_owner else 'Unpublish (admin)' }}">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20"></path><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path><line x1="4" y1="20" x2="20" y2="4"></line></svg>
-          </button>
-        </form>
-        {% endif %}
-      </div>
-    </li>
+    {% for deck in section.decks %}
+    {{ deck_tile(deck, card_counts.get(deck.id, 0), user_folders, current_user_id) }}
     {% endfor %}
   </ul>
 </section>
+{% endif %}
 {% endfor %}
+
+{# --- Unfiled section: per-user grouping with AliMonkeyBrains pinned. --- #}
+{% if unfiled_groups %}
+<section class="universal-unfiled">
+  <h2 class="universal-category-head">Unfiled</h2>
+  {% for g in unfiled_groups %}
+  <section class="universal-group">
+    <h3 class="universal-group-head">{{ g.user.username }}</h3>
+    <ul class="deck-grid">
+      {% for deck in g.decks %}
+      {{ deck_tile(deck, card_counts.get(deck.id, 0), user_folders, current_user_id) }}
+      {% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</section>
+{% endif %}
 
 {% endif %}
 {% endblock %}

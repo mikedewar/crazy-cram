@@ -196,6 +196,7 @@ LEARN_TOTAL_SECTIONS = 5
 LEARN_MIN_DECK_SIZE = MC_MIN_DECK_SIZE  # Learn uses MC in 3 of 5 sections
 DECK_NAME_MAX = 120
 FOLDER_NAME_MAX = 64
+UNIVERSAL_CATEGORY_NAME_MAX = 64
 
 DECK_PALETTE = [
     "#ffd6d6",  # peach
@@ -262,6 +263,18 @@ class Folder(db.Model):
     user = db.relationship("User", backref=db.backref("folders", cascade="all, delete-orphan", passive_deletes=True))
 
 
+class UniversalCategory(db.Model):
+    """Admin-managed sections shown at the top of /universal.
+
+    Decks published without a category fall into the per-user "Unfiled"
+    section below. Deleting a category SET NULLs its decks back to Unfiled.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(UNIVERSAL_CATEGORY_NAME_MAX), nullable=False, unique=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class Deck(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
@@ -286,9 +299,17 @@ class Deck(db.Model):
         db.Integer, db.ForeignKey("deck.id", ondelete="SET NULL"),
         nullable=True, index=True,
     )
+    # Published deck's category section on /universal. NULL = Unfiled.
+    # ON DELETE SET NULL — removing a category falls its decks back to Unfiled
+    # rather than un-publishing them.
+    universal_category_id = db.Column(
+        db.Integer, db.ForeignKey("universal_category.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
 
     user = db.relationship("User", backref=db.backref("decks", cascade="all, delete-orphan", passive_deletes=True))
     folder = db.relationship("Folder", backref=db.backref("decks", passive_deletes=True))
+    universal_category = db.relationship("UniversalCategory", foreign_keys=[universal_category_id])
     source = db.relationship(
         "Deck", remote_side=[id], foreign_keys=[source_deck_id],
     )
@@ -515,6 +536,24 @@ class FolderDeleteForm(FlaskForm):
     submit = SubmitField("Delete folder")
 
 
+class UniversalCategoryForm(FlaskForm):
+    name = StringField(
+        "Category name",
+        validators=[DataRequired(), Length(min=1, max=UNIVERSAL_CATEGORY_NAME_MAX)],
+        filters=[lambda v: v.strip() if isinstance(v, str) else v],
+    )
+    submit = SubmitField("Save")
+
+    def __init__(self, *args, category_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._category_id = category_id
+
+    def validate_name(self, field):
+        existing = UniversalCategory.query.filter_by(name=field.data).first()
+        if existing is not None and existing.id != self._category_id:
+            raise ValidationError("A category with that name already exists.")
+
+
 def _owned_deck_or_404(deck_id):
     deck = db.session.get(Deck, deck_id)
     if deck is None or deck.user_id != current_user.id:
@@ -685,11 +724,19 @@ def deck_new():
         # Slider on /new: publish=1 means create-and-publish atomically.
         if request.form.get("publish") == "1":
             deck.published_at = datetime.now(timezone.utc)
+            deck.universal_category_id = _resolve_universal_category_id(
+                request.form.get("universal_category")
+            )
         db.session.add(deck)
         db.session.commit()
         flash(f"Deck “{deck.name}” created.", "info")
         return redirect(url_for("deck_cards", deck_id=deck.id))
-    return render_template("deck_form.html", form=form, mode="new", palette=DECK_PALETTE, published=False)
+    return render_template(
+        "deck_form.html", form=form, mode="new", palette=DECK_PALETTE, published=False,
+        universal_categories=UniversalCategory.query.order_by(
+            UniversalCategory.sort_order.asc(), UniversalCategory.id.asc()
+        ).all(),
+    )
 
 
 @app.route("/decks/<int:deck_id>/edit", methods=["GET", "POST"])
@@ -713,6 +760,9 @@ def deck_edit(deck_id):
     return render_template(
         "deck_form.html", form=form, mode="edit", deck=deck,
         palette=DECK_PALETTE, published=deck.published_at is not None,
+        universal_categories=UniversalCategory.query.order_by(
+            UniversalCategory.sort_order.asc(), UniversalCategory.id.asc()
+        ).all(),
     )
 
 
@@ -744,15 +794,52 @@ def deck_delete(deck_id):
     return render_template("deck_delete.html", deck=deck)
 
 
+def _resolve_universal_category_id(raw):
+    """Form field → UniversalCategory.id or None (= Unfiled).
+
+    Empty string / "unfiled" / "0" / None all mean Unfiled. An unknown id
+    400s rather than silently falling back, so a stale picker doesn't
+    quietly reroute a publish.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip().lower()
+    if s in ("", "unfiled", "0", "none"):
+        return None
+    try:
+        cid = int(s)
+    except ValueError:
+        abort(400)
+    cat = db.session.get(UniversalCategory, cid)
+    if cat is None:
+        abort(400)
+    return cat.id
+
+
 @app.route("/decks/<int:deck_id>/publish", methods=["POST"])
 @login_required
 def deck_publish(deck_id):
-    """Flip a personal deck to Universal. Owner-only, idempotent."""
+    """Flip a personal deck to Universal. Owner-only, idempotent.
+
+    Accepts optional `universal_category` form field (id or ""/"unfiled").
+    When the deck is already published, re-posting with a new category
+    changes the section without un-publishing.
+    """
     deck = _owned_deck_or_404(deck_id)
+    cat_id = _resolve_universal_category_id(request.form.get("universal_category"))
+    changed = False
     if deck.published_at is None:
         deck.published_at = datetime.now(timezone.utc)
+        deck.universal_category_id = cat_id
+        changed = True
+        msg = f"“{deck.name}” published to Universal."
+    elif deck.universal_category_id != cat_id:
+        deck.universal_category_id = cat_id
+        changed = True
+        msg = f"“{deck.name}” moved to a new Universal category."
+    if changed:
         db.session.commit()
-        flash(f"“{deck.name}” published to Universal.", "info")
+        flash(msg, "info")
     return redirect(request.referrer or url_for("deck_edit", deck_id=deck_id))
 
 
@@ -787,11 +874,15 @@ _UNIVERSAL_PINNED_USERNAME = "AliMonkeyBrains"
 @app.route("/universal")
 @login_required
 def universal_index():
-    """Published decks, grouped by creator.
+    """Published decks, grouped by category then by creator.
 
-    Group order: AliMonkeyBrains first (if present), then other creators
-    ordered by their most-recent publish time (newest group first).
-    Within each group: decks by published_at desc (youngest first).
+    Page shape:
+      1. One section per admin-managed UniversalCategory (sort_order asc),
+         flat deck grid, decks newest-published first. Empty categories
+         are still shown so publishers can see where to land next.
+      2. "Unfiled" section — decks published without a category — grouped
+         by publisher, with AliMonkeyBrains pinned to the top of this
+         section.
     """
     rows = (
         db.session.query(Deck, func.count(Card.id))
@@ -804,38 +895,53 @@ def universal_index():
     published = [d for (d, _n) in rows]
     card_counts = {d.id: n for (d, n) in rows}
 
-    # Group by publisher.
-    groups_by_user = {}
-    for deck in published:
-        groups_by_user.setdefault(deck.user_id, []).append(deck)
-
-    # Order the groups.
-    user_ids = list(groups_by_user.keys())
+    # Users referenced by any published deck.
+    user_ids = sorted({d.user_id for d in published})
     users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
-    # Latest publish time per group (first entry's published_at — already
-    # sorted desc).
-    def _latest(uid):
-        return groups_by_user[uid][0].published_at
 
+    # Partition by category / unfiled.
+    categories = (
+        UniversalCategory.query.order_by(
+            UniversalCategory.sort_order.asc(), UniversalCategory.id.asc()
+        ).all()
+    )
+    decks_by_category = {c.id: [] for c in categories}
+    unfiled_decks = []
+    for deck in published:
+        if deck.universal_category_id and deck.universal_category_id in decks_by_category:
+            decks_by_category[deck.universal_category_id].append(deck)
+        else:
+            unfiled_decks.append(deck)
+
+    category_sections = [
+        {"category": c, "decks": decks_by_category[c.id]} for c in categories
+    ]
+
+    # Unfiled: per-user grouping with AliMonkeyBrains pinned to the top.
+    unfiled_groups_by_user = {}
+    for deck in unfiled_decks:
+        unfiled_groups_by_user.setdefault(deck.user_id, []).append(deck)
+
+    unfiled_uids = list(unfiled_groups_by_user.keys())
     pinned_uid = None
-    for uid, u in users.items():
-        if u.username == _UNIVERSAL_PINNED_USERNAME:
+    for uid in unfiled_uids:
+        u = users.get(uid)
+        if u is not None and u.username == _UNIVERSAL_PINNED_USERNAME:
             pinned_uid = uid
             break
-    sorted_uids = sorted(
-        [uid for uid in user_ids if uid != pinned_uid],
-        key=_latest, reverse=True,
+    sorted_unfiled_uids = sorted(
+        [uid for uid in unfiled_uids if uid != pinned_uid],
+        key=lambda uid: unfiled_groups_by_user[uid][0].published_at,
+        reverse=True,
     )
     if pinned_uid is not None:
-        sorted_uids.insert(0, pinned_uid)
+        sorted_unfiled_uids.insert(0, pinned_uid)
 
-    groups = [
-        {
-            "user": users[uid],
-            "decks": groups_by_user[uid],
-        }
-        for uid in sorted_uids
+    unfiled_groups = [
+        {"user": users[uid], "decks": unfiled_groups_by_user[uid]}
+        for uid in sorted_unfiled_uids
     ]
+
     user_folders = (
         Folder.query.filter_by(user_id=current_user.id)
         .order_by(Folder.name.asc())
@@ -843,7 +949,8 @@ def universal_index():
     )
     return render_template(
         "universal.html",
-        groups=groups,
+        category_sections=category_sections,
+        unfiled_groups=unfiled_groups,
         card_counts=card_counts,
         current_user_id=current_user.id,
         user_folders=user_folders,
@@ -2071,7 +2178,79 @@ def admin():
         }
         for u in users
     ]
-    return render_template("admin.html", user_rows=user_rows)
+    categories = (
+        UniversalCategory.query.order_by(
+            UniversalCategory.sort_order.asc(), UniversalCategory.id.asc()
+        ).all()
+    )
+    deck_counts_by_cat = dict(
+        db.session.query(Deck.universal_category_id, func.count(Deck.id))
+        .filter(Deck.universal_category_id.isnot(None))
+        .group_by(Deck.universal_category_id)
+        .all()
+    )
+    category_rows = [
+        {"id": c.id, "name": c.name, "deck_count": deck_counts_by_cat.get(c.id, 0)}
+        for c in categories
+    ]
+    return render_template(
+        "admin.html",
+        user_rows=user_rows,
+        category_rows=category_rows,
+        new_category_form=UniversalCategoryForm(),
+    )
+
+
+@app.route("/admin/universal-categories/new", methods=["POST"])
+@login_required
+def universal_category_new():
+    _require_admin()
+    form = UniversalCategoryForm()
+    if form.validate_on_submit():
+        max_order = db.session.query(func.max(UniversalCategory.sort_order)).scalar() or 0
+        cat = UniversalCategory(name=form.name.data, sort_order=max_order + 1)
+        db.session.add(cat)
+        db.session.commit()
+        flash(f"Category “{cat.name}” created.", "info")
+    else:
+        for errs in form.errors.values():
+            for e in errs:
+                flash(e, "error")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/universal-categories/<int:category_id>/rename", methods=["POST"])
+@login_required
+def universal_category_rename(category_id):
+    _require_admin()
+    cat = db.session.get(UniversalCategory, category_id)
+    if cat is None:
+        abort(404)
+    form = UniversalCategoryForm(category_id=cat.id)
+    if form.validate_on_submit():
+        cat.name = form.name.data
+        db.session.commit()
+        flash("Category renamed.", "info")
+    else:
+        for errs in form.errors.values():
+            for e in errs:
+                flash(e, "error")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/universal-categories/<int:category_id>/delete", methods=["POST"])
+@login_required
+def universal_category_delete(category_id):
+    _require_admin()
+    cat = db.session.get(UniversalCategory, category_id)
+    if cat is None:
+        abort(404)
+    name = cat.name
+    # Decks fall back to Unfiled via ON DELETE SET NULL on the FK.
+    db.session.delete(cat)
+    db.session.commit()
+    flash(f"Category “{name}” deleted; decks moved to Unfiled.", "info")
+    return redirect(url_for("admin"))
 
 
 @app.route("/admin/overview")
