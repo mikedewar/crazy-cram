@@ -962,3 +962,11 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 }
 
 .swatch-disabled { opacity: .5; cursor: not-allowed; }
+
+.flip-all-form { margin: 1.5rem 0 2rem; }
+.flip-all-btn {
+  display: inline-flex; align-items: center; gap: .5rem;
+}
+.flip-all-btn svg {
+  width: 18px; height: 18px; flex-shrink: 0;
+}

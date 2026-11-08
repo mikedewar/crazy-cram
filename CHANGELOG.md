@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.12.0 — 2026-11-08
+
+**Flip All Cards.** New button on `/decks/<id>/cards`, placed in its
+own section between the card grid and *Add a card*. Pressing it
+confirms, then swaps `question` ↔ `answer` on every card in the deck
+in a single commit; the flipped state persists like any other edit.
+Icon is a two-arrows-in-a-circle refresh glyph next to the label.
+
+Button only shows when the deck has at least one card and is not
+published. Published decks reject `POST /decks/<id>/flip-all` with
+403 via the existing `_abort_if_published` guard; cross-user decks
+404 via `_owned_deck_or_404`. 10 new tests; 361 green.
+
 ## v1.11.0 — 2026-11-08
 
 **Bulk Import.** New *Bulk Import* button next to *Save Card* on

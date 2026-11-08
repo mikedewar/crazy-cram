@@ -1242,6 +1242,19 @@ def card_delete(card_id):
     return redirect(url_for("deck_cards", deck_id=deck_id))
 
 
+@app.route("/decks/<int:deck_id>/flip-all", methods=["POST"])
+@login_required
+def deck_flip_all(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    _abort_if_published(deck)
+    cards = Card.query.filter_by(deck_id=deck.id).all()
+    for c in cards:
+        c.question, c.answer = c.answer, c.question
+    db.session.commit()
+    flash(f"Flipped {len(cards)} card{'s' if len(cards) != 1 else ''}.", "info")
+    return redirect(url_for("deck_cards", deck_id=deck.id))
+
+
 def _bulk_split_lines(text):
     """Split pasted text into non-blank, stripped lines. Blank-line tolerant."""
     return [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
