@@ -74,7 +74,10 @@
     {{ form.answer(rows=2, maxlength=500) }}
     {% for e in form.answer.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </p>
-  <p>{{ form.submit }}</p>
+  <p>
+    {{ form.submit }}
+    <a class="btn-secondary" href="{{ url_for('deck_cards_bulk_import', deck_id=deck.id) }}">Bulk Import</a>
+  </p>
 </form>
 {% endif %}
 {% endblock %}

@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.11.0 — 2026-11-08
+
+**Bulk Import.** New *Bulk Import* button next to *Save Card* on
+`/decks/<id>/cards`. Opens a dedicated page with two side-by-side
+textareas (Questions on the left, Answers on the right), each with a
+Paste button that pulls from the clipboard. A live preview table below
+pairs line N on the left with line N on the right so you can eyeball
+alignment before committing.
+
+Blank-line tolerant: blank lines between rows are stripped before
+pairing, so pasting from a formatted doc "just works". Mismatched
+non-blank line counts block the import with a clear error. Max 100
+rows per import; any single row over the per-side 500-character limit
+is highlighted in red in the preview and blocked server-side. The
+import always lands in the deck that was active when *Bulk Import*
+was pressed; owner-only and blocked on published decks via the same
+guards as single-card create.
+
 ## v1.10.0 — 2026-10-26
 
 **Universal categories.** Admin-managed sections at the top of

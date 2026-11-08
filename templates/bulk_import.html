@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}Bulk Import — {{ deck.name }} — Crazy-Cram{% endblock %}
+{% block content %}
+<style>
+  #bulk-import .bi-head { margin-bottom: 1rem; }
+  #bulk-import .bi-head small { opacity: .75; font-weight: normal; }
+  #bulk-import .bi-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  #bulk-import .bi-col h3 { margin: 0 0 .25rem; display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+  #bulk-import .bi-col textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .95rem; }
+  #bulk-import .bi-paste { font-size: .8rem; padding: .2rem .55rem; }
+  #bulk-import .bi-status { margin: 1rem 0 .5rem; }
+  #bulk-import .bi-status.ok { color: #1a4a2a; }
+  #bulk-import .bi-status.bad { color: #a5342e; font-weight: 600; }
+  #bulk-import table.bi-preview { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+  #bulk-import table.bi-preview th, #bulk-import table.bi-preview td {
+    border: 1px solid #ccc; padding: .35rem .5rem; vertical-align: top;
+    font-size: .9rem; word-break: break-word;
+  }
+  #bulk-import table.bi-preview th { background: #f3f3f3; text-align: left; }
+  #bulk-import table.bi-preview td.col-n { width: 2.5rem; text-align: right; opacity: .6; }
+  #bulk-import table.bi-preview tr.bad td { background: #ffe8e8; }
+  #bulk-import .bi-submit-row { margin-top: 1rem; display: flex; gap: .75rem; align-items: center; }
+  @media (max-width: 720px) { #bulk-import .bi-cols { grid-template-columns: 1fr; } }
+</style>
+
+<div id="bulk-import">
+  <div class="page-head bi-head">
+    <h1>Bulk Import <small>— {{ deck.name }}</small></h1>
+    <div class="page-head-actions">
+      <a class="btn-secondary" href="{{ url_for('deck_cards', deck_id=deck.id) }}">← Back</a>
+    </div>
+  </div>
+
+  <p>
+    Paste questions on the left and answers on the right, one per line.
+    Blank lines are ignored. The question on line N pairs with the answer on line N.
+    Up to <strong>{{ max_rows }}</strong> rows per import; max <strong>{{ card_side_max }}</strong> characters per side.
+  </p>
+
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="bi-cols">
+      <div class="bi-col">
+        <h3>
+          <span>Questions</span>
+          <button type="button" class="bi-paste" data-paste-into="bi-questions">Paste</button>
+        </h3>
+        {{ form.questions(id="bi-questions", rows=16, placeholder="One question per line") }}
+        {% for e in form.questions.errors %}<div class="err">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="bi-col">
+        <h3>
+          <span>Answers</span>
+          <button type="button" class="bi-paste" data-paste-into="bi-answers">Paste</button>
+        </h3>
+        {{ form.answers(id="bi-answers", rows=16, placeholder="One answer per line") }}
+        {% for e in form.answers.errors %}<div class="err">{{ e }}</div>{% endfor %}
+      </div>
+    </div>
+
+    <div id="bi-status" class="bi-status" aria-live="polite"></div>
+    <table class="bi-preview" id="bi-preview" hidden>
+      <thead><tr><th class="col-n">#</th><th>Question</th><th>Answer</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="bi-submit-row">
+      {{ form.submit(id="bi-submit") }}
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const MAX_ROWS = {{ max_rows }};
+  const CARD_SIDE_MAX = {{ card_side_max }};
+  const qEl = document.getElementById("bi-questions");
+  const aEl = document.getElementById("bi-answers");
+  const statusEl = document.getElementById("bi-status");
+  const previewEl = document.getElementById("bi-preview");
+  const tbodyEl = previewEl.querySelector("tbody");
+  const submitEl = document.getElementById("bi-submit");
+
+  function splitLines(s) {
+    return (s || "").split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+  }
+
+  function refresh() {
+    const qs = splitLines(qEl.value);
+    const as = splitLines(aEl.value);
+    const n = Math.max(qs.length, as.length);
+
+    tbodyEl.innerHTML = "";
+    if (n === 0) {
+      previewEl.hidden = true;
+      statusEl.textContent = "";
+      statusEl.className = "bi-status";
+      submitEl.disabled = true;
+      return;
+    }
+    previewEl.hidden = false;
+
+    let bad = false;
+    const reasons = [];
+    if (qs.length !== as.length) {
+      bad = true;
+      reasons.push(`Mismatch: ${qs.length} questions vs ${as.length} answers.`);
+    }
+    if (n > MAX_ROWS) {
+      bad = true;
+      reasons.push(`Too many rows (${n}). Max is ${MAX_ROWS}.`);
+    }
+
+    for (let i = 0; i < n; i++) {
+      const q = qs[i];
+      const a = as[i];
+      const tr = document.createElement("tr");
+      const rowBad =
+        q === undefined || a === undefined ||
+        (q !== undefined && q.length > CARD_SIDE_MAX) ||
+        (a !== undefined && a.length > CARD_SIDE_MAX) ||
+        (i + 1 > MAX_ROWS);
+      if (rowBad) {
+        tr.className = "bad";
+        bad = true;
+      }
+
+      const nTd = document.createElement("td");
+      nTd.className = "col-n";
+      nTd.textContent = String(i + 1);
+      tr.appendChild(nTd);
+
+      const qTd = document.createElement("td");
+      if (q === undefined) {
+        qTd.innerHTML = "<em>(missing)</em>";
+      } else {
+        qTd.textContent = q;
+        if (q.length > CARD_SIDE_MAX) {
+          qTd.textContent += ` [${q.length}/${CARD_SIDE_MAX}]`;
+        }
+      }
+      tr.appendChild(qTd);
+
+      const aTd = document.createElement("td");
+      if (a === undefined) {
+        aTd.innerHTML = "<em>(missing)</em>";
+      } else {
+        aTd.textContent = a;
+        if (a.length > CARD_SIDE_MAX) {
+          aTd.textContent += ` [${a.length}/${CARD_SIDE_MAX}]`;
+        }
+      }
+      tr.appendChild(aTd);
+
+      tbodyEl.appendChild(tr);
+    }
+
+    const overLong =
+      qs.some(x => x.length > CARD_SIDE_MAX) ||
+      as.some(x => x.length > CARD_SIDE_MAX);
+    if (overLong) {
+      bad = true;
+      reasons.push(`One or more rows is over ${CARD_SIDE_MAX} characters.`);
+    }
+
+    if (bad) {
+      statusEl.className = "bi-status bad";
+      statusEl.textContent = reasons.join(" ");
+      submitEl.disabled = true;
+    } else {
+      statusEl.className = "bi-status ok";
+      const rowWord = qs.length === 1 ? "card" : "cards";
+      statusEl.textContent = `Ready to import ${qs.length} ${rowWord}.`;
+      submitEl.disabled = false;
+    }
+  }
+
+  qEl.addEventListener("input", refresh);
+  aEl.addEventListener("input", refresh);
+
+  document.querySelectorAll(".bi-paste").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const target = document.getElementById(btn.dataset.pasteInto);
+      if (!target) return;
+      try {
+        const text = await navigator.clipboard.readText();
+        target.value = text;
+        target.dispatchEvent(new Event("input", { bubbles: true }));
+        target.focus();
+      } catch (err) {
+        statusEl.className = "bi-status bad";
+        statusEl.textContent = "Clipboard access blocked — paste with Ctrl/Cmd+V instead.";
+      }
+    });
+  });
+
+  refresh();
+})();
+</script>
+{% endblock %}

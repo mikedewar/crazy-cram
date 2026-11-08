@@ -187,6 +187,7 @@ class InviteCode(db.Model):
 
 
 CARD_SIDE_MAX = 500
+BULK_IMPORT_MAX_ROWS = 100
 
 # MC study mode: 1 correct + 3 distractors drawn from other cards in the deck.
 MC_OPTIONS_PER_QUESTION = 4
@@ -606,6 +607,12 @@ class CardForm(FlaskForm):
         filters=[lambda v: v.strip() if isinstance(v, str) else v],
     )
     submit = SubmitField("Save card")
+
+
+class BulkImportForm(FlaskForm):
+    questions = TextAreaField("Questions", validators=[DataRequired()])
+    answers = TextAreaField("Answers", validators=[DataRequired()])
+    submit = SubmitField("Import")
 
 
 @app.route("/")
@@ -1207,6 +1214,54 @@ def card_delete(card_id):
     db.session.commit()
     flash("Card deleted.", "info")
     return redirect(url_for("deck_cards", deck_id=deck_id))
+
+
+def _bulk_split_lines(text):
+    """Split pasted text into non-blank, stripped lines. Blank-line tolerant."""
+    return [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+
+
+@app.route("/decks/<int:deck_id>/cards/bulk-import", methods=["GET", "POST"])
+@login_required
+def deck_cards_bulk_import(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    _abort_if_published(deck)
+    form = BulkImportForm()
+    if form.validate_on_submit():
+        qs = _bulk_split_lines(form.questions.data)
+        as_ = _bulk_split_lines(form.answers.data)
+        if not qs or not as_:
+            flash("Paste questions and answers before importing.", "error")
+        elif len(qs) != len(as_):
+            flash(
+                f"Mismatched line counts: {len(qs)} questions vs {len(as_)} answers. "
+                "Fix the alignment and try again.",
+                "error",
+            )
+        elif len(qs) > BULK_IMPORT_MAX_ROWS:
+            flash(
+                f"Too many rows ({len(qs)}). Max is {BULK_IMPORT_MAX_ROWS} per import.",
+                "error",
+            )
+        elif any(len(q) > CARD_SIDE_MAX for q in qs) or any(len(a) > CARD_SIDE_MAX for a in as_):
+            flash(
+                f"One or more rows exceeds the {CARD_SIDE_MAX}-character limit per side. "
+                "Shorten the long rows and try again.",
+                "error",
+            )
+        else:
+            for q, a in zip(qs, as_):
+                db.session.add(Card(deck_id=deck.id, question=q, answer=a))
+            db.session.commit()
+            flash(f"Imported {len(qs)} card{'s' if len(qs) != 1 else ''}.", "info")
+            return redirect(url_for("deck_cards", deck_id=deck.id))
+    return render_template(
+        "bulk_import.html",
+        deck=deck,
+        form=form,
+        max_rows=BULK_IMPORT_MAX_ROWS,
+        card_side_max=CARD_SIDE_MAX,
+    )
 
 
 # --- Study session ----------------------------------------------------
