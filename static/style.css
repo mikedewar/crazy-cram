@@ -970,3 +970,95 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 .flip-all-btn svg {
   width: 18px; height: 18px; flex-shrink: 0;
 }
+
+/* --- Watch mode (viewport <= 320px, sticky in localStorage) ------- */
+/* Belt-and-braces: hide the tile's Study button on normal screens
+   too (the whole-tile overlay now owns that tap). Not watch-specific. */
+.deck-tile-link-study { position: absolute; inset: 0; z-index: 0; text-indent: -9999px; overflow: hidden; border-radius: inherit; }
+
+/* Second link is below the first in DOM, so it wins — we want cards (edit)
+   on normal, study on watch. Flip z-index per-mode. */
+.deck-tile-link-study { z-index: -1; }
+.watch-mode .deck-tile-link-cards { z-index: -1; }
+.watch-mode .deck-tile-link-study { z-index: 0; }
+
+.watch-mode .sidebar { display: none !important; }
+.watch-mode main { max-width: none; margin: .5rem 0 0 !important; padding: 0 .4rem !important; }
+.watch-mode .brand-head,
+.watch-mode .page-head,
+.watch-mode .section-head,
+.watch-mode .folders-section h2,
+.watch-mode .account-footer,
+.watch-mode .flashcard-hint,
+.watch-mode .progress,
+.watch-mode .muted,
+.watch-mode .folder-chip { display: none !important; }
+
+/* Folder rows: full width of the (now unpadded) main. */
+.watch-mode .deck-list { margin: 0; }
+.watch-mode .folder-row-wrap {
+  margin-bottom: .35rem;
+  --folder-swatch-size: 2rem;
+  --folder-text-gap: .55rem;
+  --folder-row-pad: .5rem;
+}
+.watch-mode .deck-row { margin: 0; gap: .4rem; border-radius: .4rem; }
+.watch-mode .deck-name { font-size: 1rem; }
+.watch-mode .deck-count { font-size: .7rem; }
+
+/* Kill the "+ New folder" / "Manage folders" / "+ New deck" buttons at
+   section tails. Those <p> wrappers live directly under <section> or
+   are the trailing sibling of .deck-grid — target both. */
+.watch-mode .folders-section > p,
+.watch-mode .empty-state .btn,
+.watch-mode main > p:last-child { display: none !important; }
+
+/* Deck tiles: hide edit/delete icons and the inner Study button;
+   the tile itself is now the Study target. */
+.watch-mode .deck-tile-actions,
+.watch-mode .deck-tile-edit,
+.watch-mode .deck-tile-icons { display: none !important; }
+.watch-mode .deck-grid { grid-template-columns: 1fr; gap: .5rem; }
+.watch-mode .deck-tile { aspect-ratio: auto; padding: 1rem .75rem; min-height: 4rem; justify-content: center; }
+.watch-mode .deck-tile::before,
+.watch-mode .deck-tile::after { display: none; }
+
+/* study_config: enlarge submit + radios + number field. */
+.watch-mode form .radio { display: block; padding: .6rem .4rem; font-size: 1rem; }
+.watch-mode form input[type=radio] { transform: scale(1.4); margin-right: .5rem; }
+.watch-mode form input[type=text],
+.watch-mode form input[type=number] {
+  width: 100%; font-size: 1.2rem; padding: .6rem .5rem;
+  border: 1px solid #8886; border-radius: .4rem;
+}
+.watch-mode form fieldset { border: 0; padding: 0; margin: 0 0 .75rem; }
+.watch-mode form legend { font-weight: 600; margin-bottom: .25rem; }
+.watch-mode .btn,
+.watch-mode form input[type=submit],
+.watch-mode form button[type=submit] {
+  display: block; width: 100%;
+  padding: 1rem; font-size: 1.1rem; font-weight: 600;
+  border-radius: .5rem; margin-top: .5rem;
+}
+
+/* Flashcard study page: strip chrome, grow grade buttons. */
+.watch-mode .study-card-stage { margin: .25rem 0; }
+.watch-mode .flashcard { min-height: 7rem; font-size: 1.1rem; }
+.watch-mode .flashcard-grade { gap: .4rem; margin: .5rem 0; }
+.watch-mode .btn-grade { padding: 1.1rem .5rem; font-size: 1.15rem; }
+.watch-mode .study-card-stage ~ p { display: none !important; }
+
+/* Long-press-to-exit overlay. */
+.watch-exit {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .75);
+}
+.watch-exit[hidden] { display: none !important; }
+.watch-exit-btn {
+  padding: 1rem 1.2rem; font-size: 1rem; font-weight: 600;
+  border: 0; border-radius: .5rem;
+  background: #fff; color: #222; cursor: pointer;
+}
+html:not(.watch-mode) .watch-exit { display: none !important; }
+

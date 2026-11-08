@@ -55,8 +55,8 @@ def test_flip_all_persists_across_requests(client, invite, app):
     # next to the Q label by looking at document order.
     q_idx = body.find(">Q<")
     a_idx = body.find(">A<")
-    assert q_idx < body.find("cat") < a_idx
-    assert a_idx < body.find("chat")
+    assert q_idx < body.find("cat", q_idx) < a_idx
+    assert a_idx < body.find("chat", a_idx)
 
 
 def test_flip_all_empty_deck_no_error(client, invite, app):

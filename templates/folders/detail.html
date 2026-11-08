@@ -19,8 +19,12 @@
   {%- set dx2 = (did * 29) % 7 - 5 -%}
   {%- set dy2 = (did * 31) % 4 + 3 -%}
   <li class="deck-tile" style="{% if row.deck.color %}--deck-color: {{ row.deck.color }};{% endif %}--r1: {{ r1 }}deg;--r2: {{ r2 }}deg;--dx1: {{ dx1 }}px;--dy1: {{ dy1 }}px;--dx2: {{ dx2 }}px;--dy2: {{ dy2 }}px;">
-    <a class="deck-tile-link" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}"
+    <a class="deck-tile-link deck-tile-link-cards" href="{{ url_for('deck_cards', deck_id=row.deck.id) }}"
        aria-label="Open cards in {{ row.deck.name }}"></a>
+    {% if row.card_count > 0 %}
+    <a class="deck-tile-link deck-tile-link-study" href="{{ url_for('study_config', deck_id=row.deck.id) }}"
+       aria-label="Study {{ row.deck.name }}"></a>
+    {% endif %}
     <div class="deck-tile-name">
       <span class="deck-name">{{ row.deck.name }}</span>
       <span class="deck-count">{{ row.card_count }} card{{ '' if row.card_count == 1 else 's' }}</span>

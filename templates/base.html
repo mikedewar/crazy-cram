@@ -8,6 +8,24 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
+  <script>
+    (function () {
+      {% if not current_user.is_authenticated %}return;{% endif %}
+      try {
+        var p = new URLSearchParams(location.search);
+        if (p.has('big')) { try { sessionStorage.setItem('cc-big', '1'); } catch (e) {} }
+        if (p.has('small')) { try { sessionStorage.removeItem('cc-big'); } catch (e) {} }
+        if (sessionStorage.getItem('cc-big') === '1') return;
+        var w = window.innerWidth || document.documentElement.clientWidth || 0;
+        var sticky = false;
+        try { sticky = localStorage.getItem('cc-watch') === '1'; } catch (e) {}
+        if (sticky || (w > 0 && w <= 320)) {
+          document.documentElement.classList.add('watch-mode');
+          try { localStorage.setItem('cc-watch', '1'); } catch (e) {}
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <nav class="sidebar" aria-label="Primary">
@@ -67,5 +85,59 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+  {% if current_user.is_authenticated %}
+  <div class="watch-exit" hidden>
+    <button type="button" class="watch-exit-btn" id="watch-exit-btn">Use big screen</button>
+  </div>
+  <script>
+    (function () {
+      if (!document.documentElement.classList.contains('watch-mode')) return;
+      var overlay = document.querySelector('.watch-exit');
+      var btn = document.getElementById('watch-exit-btn');
+      if (!overlay || !btn) return;
+      var timer = null;
+      var startX = 0, startY = 0;
+      var MOVE_TOLERANCE = 12;
+      function cancel() {
+        if (timer) { clearTimeout(timer); timer = null; }
+      }
+      function start(e) {
+        if (e.target.closest('.watch-exit')) return;
+        if (!e.touches || e.touches.length !== 1) { cancel(); return; }
+        var t = e.touches[0];
+        startX = t.clientX; startY = t.clientY;
+        cancel();
+        timer = setTimeout(function () {
+          overlay.hidden = false;
+        }, 5000);
+      }
+      function onMove(e) {
+        if (!timer) return;
+        if (!e.touches || e.touches.length === 0) return;
+        var t = e.touches[0];
+        if (Math.abs(t.clientX - startX) > MOVE_TOLERANCE ||
+            Math.abs(t.clientY - startY) > MOVE_TOLERANCE) {
+          cancel();
+        }
+      }
+      document.addEventListener('touchstart', start, { passive: true });
+      document.addEventListener('touchend', cancel, { passive: true });
+      document.addEventListener('touchcancel', cancel, { passive: true });
+      document.addEventListener('touchmove', onMove, { passive: true });
+      window.addEventListener('blur', cancel);
+      window.addEventListener('pagehide', cancel);
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) cancel();
+      });
+      btn.addEventListener('click', function () {
+        try { sessionStorage.setItem('cc-big', '1'); } catch (e) {}
+        try { localStorage.removeItem('cc-watch'); } catch (e) {}
+        document.documentElement.classList.remove('watch-mode');
+        overlay.hidden = true;
+        location.reload();
+      });
+    })();
+  </script>
+  {% endif %}
 </body>
 </html>

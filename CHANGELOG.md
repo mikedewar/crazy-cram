@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.13.1 — 2026-11-08
+
+**Watch mode fixes.** Two bugs reported from the actual watch:
+
+1. Watch mode was activating on the login/register pages, contrary
+   to the spec. The bootstrap script and the long-press overlay are
+   now Jinja-gated on `current_user.is_authenticated` — anonymous
+   visitors never enter watch mode, even if the viewport is tiny
+   or `localStorage.cc-watch` is sticky from an earlier session.
+
+2. The "Use big screen" overlay was appearing on first page load
+   without a deliberate 5-second hold. The long-press handler now
+   requires exactly one touch point, records the start coordinates,
+   and cancels the timer if the touch moves more than 12 CSS
+   pixels — so page scrolls and taps that linger in the middle of
+   soft-keyboard animations no longer trip it. Also cancels on
+   `blur`, `pagehide`, and `visibilitychange→hidden` so backgrounded
+   tabs don't keep the timer alive.
+
+## v1.13.0 — 2026-11-08
+
+**Watch mode.** When the viewport is 320 CSS pixels wide or narrower
+(Apple Watch / similar tiny screens), the site switches into a
+sticky small-screen layout: sidebar hidden, folder rows and deck
+tiles go full-width, "+ New folder" / "Manage folders" / "+ New
+deck" / account footer all hidden. On a deck tile the entire card
+now taps through to `/decks/<id>/study` (the study config page)
+instead of the card-edit view — reached via a second overlay
+`<a>` promoted above the original with a watch-only z-index flip,
+so desktop behaviour is unchanged. Study config enlarges radios,
+submit, and the card-count input. That input was changed from
+`type="number"` to `type="text" inputmode="numeric"
+pattern="[0-9]*"` because WatchOS Safari renders number spinners
+as a scroll-wheel picker with no delete key; the new attributes
+get the numeric keyboard with a working backspace while keeping
+desktop behaviour identical. The /study flashcard page strips
+chrome (progress bar, hint, quit link) and enlarges the
+Wrong/Right buttons. Mode is sticky in `localStorage` once
+triggered; long-pressing the screen for 5 seconds reveals a
+"Use big screen" button that flips to normal layout for the
+current `sessionStorage` session (clears on tab close).
+
 ## v1.12.0 — 2026-11-08
 
 **Flip All Cards.** New button on `/decks/<id>/cards`, placed in its

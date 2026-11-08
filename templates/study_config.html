@@ -43,7 +43,7 @@
   {# Learn always uses the whole deck in §1 — n_cards is irrelevant. #}
   <p id="n-cards-field">
     {{ form.n_cards.label }}<br>
-    {{ form.n_cards(type="number", min=1, max=total, autofocus=True) }}
+    {{ form.n_cards(type="text", inputmode="numeric", pattern="[0-9]*", min=1, max=total, autofocus=True) }}
     {% for e in form.n_cards.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </p>
   <script>
