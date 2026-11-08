@@ -142,13 +142,16 @@ def _touch_last_seen():
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     prev = current_user.last_seen_at
     ip = request.remote_addr
+    ua = (request.headers.get("User-Agent") or "")[:500] or None
     if (
         prev is None
         or (now - prev).total_seconds() >= LAST_SEEN_WRITE_INTERVAL_S
         or current_user.last_seen_ip != ip
+        or current_user.last_seen_ua != ua
     ):
         current_user.last_seen_at = now
         current_user.last_seen_ip = ip
+        current_user.last_seen_ua = ua
         db.session.commit()
 
 
@@ -194,6 +197,7 @@ class User(UserMixin, db.Model):
     last_login_at = db.Column(db.DateTime, nullable=True)
     last_seen_at = db.Column(db.DateTime, nullable=True)
     last_seen_ip = db.Column(db.String(45), nullable=True)
+    last_seen_ua = db.Column(db.String(500), nullable=True)
 
 
 class InviteCode(db.Model):
@@ -2251,6 +2255,7 @@ def admin():
             "invite_code": invite_by_user.get(u.id),
             "last_seen_at": u.last_seen_at,
             "last_seen_ip": u.last_seen_ip,
+            "last_seen_ua": u.last_seen_ua,
             "folders": folder_counts.get(u.id, 0),
             "decks": deck_counts.get(u.id, 0),
         }

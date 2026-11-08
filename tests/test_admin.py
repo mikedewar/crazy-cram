@@ -93,12 +93,14 @@ def test_admin_shows_last_seen_folders_and_decks(client, invite, app):
     body = r.data.decode()
     assert "Last seen" in body
     assert "Last IP" in body
+    assert "Last UA" in body
     assert "Folders" in body
     assert "Decks" in body
-    # bob's row should carry 1 folder, 2 decks and a populated last_seen_*.
+    # bob's row should carry 1 folder, 2 decks and populated last_seen_*.
     bob = app.User.query.filter_by(username="bob").one()
     assert bob.last_seen_at is not None
     assert bob.last_seen_ip is not None
+    assert bob.last_seen_ua is not None
     assert app.Folder.query.filter_by(user_id=bob.id).count() == 1
     assert app.Deck.query.filter_by(user_id=bob.id).count() == 2
 

@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_version }}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <nav class="sidebar" aria-label="Primary">
     <a class="sidebar-btn" href="{{ url_for('home') }}" aria-label="Home">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"

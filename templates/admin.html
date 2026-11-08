@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Admin — Crazy-Cram{% endblock %}
+{% block body_class %}page-wide{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Admin</h1>
@@ -11,13 +12,15 @@
 <section class="account-panel">
   <h2>Users &amp; invite tokens</h2>
   {% if user_rows %}
-  <table class="admin-table">
+  <div class="admin-table-scroll">
+  <table class="admin-table admin-users">
     <thead>
       <tr>
         <th>Username</th>
         <th>Invite token</th>
         <th>Last seen</th>
         <th>Last IP</th>
+        <th class="ua">Last UA</th>
         <th class="num">Folders</th>
         <th class="num">Decks</th>
       </tr>
@@ -33,7 +36,7 @@
           <span class="muted">—</span>
           {% endif %}
         </td>
-        <td>
+        <td class="nowrap">
           {% if row.last_seen_at %}
           {{ row.last_seen_at.strftime('%Y-%m-%d %H:%M') }}
           {% else %}
@@ -47,12 +50,20 @@
           <span class="muted">—</span>
           {% endif %}
         </td>
+        <td class="ua">
+          {% if row.last_seen_ua %}
+          <abbr title="{{ row.last_seen_ua }}">{{ row.last_seen_ua }}</abbr>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
         <td class="num">{{ row.folders }}</td>
         <td class="num">{{ row.decks }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <p class="muted">No users yet.</p>
   {% endif %}
@@ -67,6 +78,7 @@
   </p>
 
   {% if category_rows %}
+  <div class="admin-table-scroll">
   <table class="admin-table">
     <thead>
       <tr>
@@ -104,6 +116,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <p class="muted">No categories yet.</p>
   {% endif %}
