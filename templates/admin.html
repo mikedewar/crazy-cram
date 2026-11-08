@@ -16,7 +16,8 @@
       <tr>
         <th>Username</th>
         <th>Invite token</th>
-        <th>Last login</th>
+        <th>Last seen</th>
+        <th>Last IP</th>
         <th class="num">Folders</th>
         <th class="num">Decks</th>
       </tr>
@@ -33,8 +34,15 @@
           {% endif %}
         </td>
         <td>
-          {% if row.last_login_at %}
-          {{ row.last_login_at.strftime('%Y-%m-%d %H:%M') }}
+          {% if row.last_seen_at %}
+          {{ row.last_seen_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if row.last_seen_ip %}
+          <code>{{ row.last_seen_ip }}</code>
           {% else %}
           <span class="muted">—</span>
           {% endif %}

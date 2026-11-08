@@ -56,7 +56,7 @@ def test_admin_shows_users_and_their_invites(client, invite, app):
     assert alice_code.encode() in r.data
 
 
-def test_admin_shows_last_login_folders_and_decks(client, invite, app):
+def test_admin_shows_last_seen_folders_and_decks(client, invite, app):
     _, _ = _register(client, invite, "bob", password="bob-pass-1")
     # bob now has 1 folder and 2 decks under it
     client.post("/folders/new", data={"name": "study", "submit": "Create folder"})
@@ -74,12 +74,14 @@ def test_admin_shows_last_login_folders_and_decks(client, invite, app):
     _register(client, invite, "alice")
     _make_admin(app, "alice")
 
-    # Log bob back in so last_login_at is populated.
+    # Log bob back in so last_seen_at + last_seen_ip get populated.
     client.post("/logout", data={})
     client.post(
         "/login",
         data={"username": "bob", "password": "bob-pass-1", "submit": "Log in"},
     )
+    # Bob hits one more page while logged in — that's what sets last_seen.
+    client.get("/home")
     client.post("/logout", data={})
     client.post(
         "/login",
@@ -89,12 +91,14 @@ def test_admin_shows_last_login_folders_and_decks(client, invite, app):
     r = client.get("/admin")
     assert r.status_code == 200
     body = r.data.decode()
-    assert "Last login" in body
+    assert "Last seen" in body
+    assert "Last IP" in body
     assert "Folders" in body
     assert "Decks" in body
-    # bob's row should carry 1 folder, 2 decks.
+    # bob's row should carry 1 folder, 2 decks and a populated last_seen_*.
     bob = app.User.query.filter_by(username="bob").one()
-    assert bob.last_login_at is not None
+    assert bob.last_seen_at is not None
+    assert bob.last_seen_ip is not None
     assert app.Folder.query.filter_by(user_id=bob.id).count() == 1
     assert app.Deck.query.filter_by(user_id=bob.id).count() == 2
 

@@ -132,6 +132,26 @@ def _rate_limited(e):
     return render_template("rate_limited.html", detail=str(e.description)), 429
 
 
+LAST_SEEN_WRITE_INTERVAL_S = 60
+
+
+@app.before_request
+def _touch_last_seen():
+    if not current_user.is_authenticated:
+        return
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    prev = current_user.last_seen_at
+    ip = request.remote_addr
+    if (
+        prev is None
+        or (now - prev).total_seconds() >= LAST_SEEN_WRITE_INTERVAL_S
+        or current_user.last_seen_ip != ip
+    ):
+        current_user.last_seen_at = now
+        current_user.last_seen_ip = ip
+        db.session.commit()
+
+
 @app.after_request
 def _no_html_cache(response):
     # HTML pages carry per-user content + CSRF tokens; cached HTML is
@@ -172,6 +192,8 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     is_admin = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
     last_login_at = db.Column(db.DateTime, nullable=True)
+    last_seen_at = db.Column(db.DateTime, nullable=True)
+    last_seen_ip = db.Column(db.String(45), nullable=True)
 
 
 class InviteCode(db.Model):
@@ -2227,7 +2249,8 @@ def admin():
         {
             "username": u.username,
             "invite_code": invite_by_user.get(u.id),
-            "last_login_at": u.last_login_at,
+            "last_seen_at": u.last_seen_at,
+            "last_seen_ip": u.last_seen_ip,
             "folders": folder_counts.get(u.id, 0),
             "decks": deck_counts.get(u.id, 0),
         }
