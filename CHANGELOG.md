@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.14.0 — 2026-11-10
+
+**Shape-aware MC distractors.** The multiple-choice option picker
+now prefers distractors whose surface shape matches the correct
+answer so you can't guess by elimination. Each answer gets a
+shape fingerprint: `number` vs `text`, digit-count bucket (1 /
+2–3 / 4 / 5+) for numbers, trailing punctuation (`!`, `?`, `.`,
+`…`), and whether a text answer has inner digits. When the
+correct answer ends in `!`, the three distractors are picked
+first from siblings that also end in `!`; a year like `1066`
+pulls other 4-digit numbers before 2-digit ones; `500` groups
+with `42`/`100`/`750`, not with word answers. Falls back
+through progressively looser shape prefixes and finally to
+random so small decks still get a full option set. Behaviour
+of `mc_options_for` and its public shape is unchanged — same
+input, same four shuffled strings out.
+
 ## v1.13.1 — 2026-11-08
 
 **Watch mode fixes.** Two bugs reported from the actual watch:

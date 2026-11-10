@@ -1358,14 +1358,77 @@ def char_diff_ops(student_answer, correct_answer):
     return student_side, correct_side
 
 
+_MC_TRAILING_PUNCT = "!?.…"
+
+
+def _mc_shape_key(s):
+    """Shape fingerprint for an answer, used to group MC distractors so the
+    correct answer can't be guessed by surface shape (trailing `!`, being the
+    only number, being the only year-length string, etc.).
+
+    Returns a tuple (kind, digit_bucket, trailing_punct, has_inner_digits).
+    """
+    t = (s or "").strip()
+    trailing = t[-1] if t and t[-1] in _MC_TRAILING_PUNCT else ""
+    core = t.rstrip(_MC_TRAILING_PUNCT + " ")
+    if re.fullmatch(r"-?\d+(?:[.,]\d+)?", core):
+        n_digits = sum(ch.isdigit() for ch in core)
+        if n_digits <= 1:
+            bucket = "1"
+        elif n_digits <= 3:
+            bucket = "2-3"
+        elif n_digits == 4:
+            bucket = "4"
+        else:
+            bucket = "5+"
+        return ("number", bucket, trailing, False)
+    has_inner_digits = any(ch.isdigit() for ch in core)
+    return ("text", "", trailing, has_inner_digits)
+
+
+def _mc_pick_distractors(correct, pool, n):
+    """Pick `n` distractors from `pool`, preferring ones whose shape matches
+    `correct`. Falls back through looser matches, finally random, so decks
+    without enough shape-matching siblings still produce a full option set.
+    """
+    if n <= 0 or not pool:
+        return []
+    target = _mc_shape_key(correct)
+    keys = [_mc_shape_key(a) for a in pool]
+    # Progressively looser prefixes of the key: full, drop inner-digits,
+    # drop trailing-punct, finally just kind (number vs text).
+    tier_lens = [4, 3, 2, 1]
+    chosen_idx = []
+    used = set()
+    for tl in tier_lens:
+        if len(chosen_idx) >= n:
+            break
+        bucket = [i for i in range(len(pool))
+                  if i not in used and keys[i][:tl] == target[:tl]]
+        take = min(n - len(chosen_idx), len(bucket))
+        if take:
+            picks = random.sample(bucket, take)
+            used.update(picks)
+            chosen_idx.extend(picks)
+    if len(chosen_idx) < n:
+        leftovers = [i for i in range(len(pool)) if i not in used]
+        extra = random.sample(leftovers, min(n - len(chosen_idx), len(leftovers)))
+        chosen_idx.extend(extra)
+    return [pool[i] for i in chosen_idx]
+
+
 def mc_options_for(attempt):
     """Pick MC options for an attempt: correct answer + 3 distractors.
 
     Distractors are drawn from *other* cards in the same deck, by looking at
     the current cards (not snapshots) via the attempt's session.deck_id.
     Dedupes on normalized text so two cards with the same answer don't both
-    appear. If fewer than 3 unique distractors exist the deck has shrunk
-    since start — fall back to whatever we have, options list < 4.
+    appear. Prefers distractors with the same surface shape as the correct
+    answer (trailing `!`, year-length number, etc.) so the right option can't
+    be spotted by shape; falls back to random when the deck doesn't have
+    enough shape-matching siblings. If fewer than 3 unique distractors exist
+    the deck has shrunk since start — fall back to whatever we have, options
+    list < 4.
 
     Returns a shuffled list of plain strings.
     """
@@ -1385,7 +1448,7 @@ def mc_options_for(attempt):
             continue
         seen.add(norm)
         pool.append(ans)
-    distractors = random.sample(pool, min(MC_OPTIONS_PER_QUESTION - 1, len(pool)))
+    distractors = _mc_pick_distractors(correct, pool, MC_OPTIONS_PER_QUESTION - 1)
     options = [correct, *distractors]
     random.shuffle(options)
     return options
