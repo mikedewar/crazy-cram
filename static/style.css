@@ -686,13 +686,12 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 }
 .admin-table .nowrap { white-space: nowrap; }
 .admin-table code { font-size: .95em; word-break: break-all; }
-.admin-table.admin-users th:nth-child(3),
-.admin-table.admin-users td:nth-child(3) {
-  width: 9em;             /* Last seen */
-  white-space: nowrap;
-}
-.admin-table.admin-users th:nth-child(4),
-.admin-table.admin-users td:nth-child(4) { width: 7em; }    /* Last IP   */
+.admin-table.admin-users .col-seen { width: 9em; white-space: nowrap; }
+.admin-table.admin-users .col-ip { width: 7em; }
+.admin-table.admin-users .col-invite { width: 9em; }
+.admin-table.admin-users .col-browser { width: 7em; }
+.admin-table.admin-users .col-os { width: 7em; }
+.admin-table.admin-users .col-device { width: 6.5em; }
 .admin-table.admin-users .ua {
   max-width: 10ch;
   overflow: hidden;
@@ -704,6 +703,28 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
   border-bottom: 1px dotted #8886;
   cursor: help;
 }
+.admin-table .col-hidden { display: none; }
+
+.col-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .75rem;
+  align-items: center;
+  font-size: .75rem;
+  margin: 0 0 .5rem;
+  padding: .35rem .5rem;
+  border: 1px solid #8884;
+  border-radius: 4px;
+}
+.col-toggles-label { font-weight: 600; opacity: .75; }
+.col-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  cursor: pointer;
+  user-select: none;
+}
+.col-toggles input[type="checkbox"] { margin: 0; }
 
 /* --- Learn mode --------------------------------------------------- */
 
@@ -1027,10 +1048,18 @@ a[aria-disabled="true"].btn { background: #8886; border-color: #8886; pointer-ev
 .watch-mode form .radio { display: block; padding: .6rem .4rem; font-size: 1rem; }
 .watch-mode form input[type=radio] { transform: scale(1.4); margin-right: .5rem; }
 .watch-mode form input[type=text],
+.watch-mode form input[type=password],
 .watch-mode form input[type=number] {
   width: 100%; font-size: 1.2rem; padding: .6rem .5rem;
   border: 1px solid #8886; border-radius: .4rem;
 }
+
+/* Login/register at 320px: shrink the "Crazy-Cram" / "Log in" / "Register"
+   headers so the form fits above the watch's soft keyboard. Scoped to
+   auth pages so real page titles (Admin, Stats, folder names) keep their
+   normal size on authenticated watch views. */
+.watch-mode body.auth-page h1 { font-size: 1.2rem; }
+.watch-mode body.auth-page h2 { font-size: .95rem; margin-bottom: .6rem; }
 .watch-mode form fieldset { border: 0; padding: 0; margin: 0 0 .75rem; }
 .watch-mode form legend { font-weight: 600; margin-bottom: .25rem; }
 .watch-mode .btn,

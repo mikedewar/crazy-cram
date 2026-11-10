@@ -11,53 +11,78 @@
 <section class="account-panel">
   <h2>Users &amp; invite tokens</h2>
   {% if user_rows %}
+  <div class="col-toggles" data-col-toggles>
+    <span class="col-toggles-label">Columns:</span>
+    <label><input type="checkbox" data-col="username" checked> Username</label>
+    <label><input type="checkbox" data-col="invite"> Invite</label>
+    <label><input type="checkbox" data-col="seen"> Last seen</label>
+    <label><input type="checkbox" data-col="ip"> Last IP</label>
+    <label><input type="checkbox" data-col="browser" checked> Browser</label>
+    <label><input type="checkbox" data-col="os" checked> OS</label>
+    <label><input type="checkbox" data-col="device" checked> Device</label>
+    <label><input type="checkbox" data-col="ua" checked> Raw UA</label>
+    <label><input type="checkbox" data-col="folders" checked> Folders</label>
+    <label><input type="checkbox" data-col="decks" checked> Decks</label>
+  </div>
   <div class="admin-table-scroll">
-  <table class="admin-table admin-users">
+  <table class="admin-table admin-users" data-users-table>
     <thead>
       <tr>
-        <th>Username</th>
-        <th>Invite token</th>
-        <th>Last seen</th>
-        <th>Last IP</th>
-        <th class="ua">Last UA</th>
-        <th class="num">Folders</th>
-        <th class="num">Decks</th>
+        <th class="col-username">Username</th>
+        <th class="col-invite">Invite token</th>
+        <th class="col-seen">Last seen</th>
+        <th class="col-ip">Last IP</th>
+        <th class="col-browser">Browser</th>
+        <th class="col-os">OS</th>
+        <th class="col-device">Device</th>
+        <th class="col-ua ua">Raw UA</th>
+        <th class="col-folders num">Folders</th>
+        <th class="col-decks num">Decks</th>
       </tr>
     </thead>
     <tbody>
       {% for row in user_rows %}
       <tr>
-        <td>{{ row.username }}</td>
-        <td>
+        <td class="col-username">{{ row.username }}</td>
+        <td class="col-invite">
           {% if row.invite_code %}
           <code>{{ row.invite_code }}</code>
           {% else %}
           <span class="muted">—</span>
           {% endif %}
         </td>
-        <td class="nowrap">
+        <td class="col-seen nowrap">
           {% if row.last_seen_at %}
           {{ row.last_seen_at.strftime('%Y-%m-%d %H:%M') }}
           {% else %}
           <span class="muted">—</span>
           {% endif %}
         </td>
-        <td>
+        <td class="col-ip">
           {% if row.last_seen_ip %}
           <code>{{ row.last_seen_ip }}</code>
           {% else %}
           <span class="muted">—</span>
           {% endif %}
         </td>
-        <td class="ua">
+        <td class="col-browser">
+          {% if row.ua_browser %}{{ row.ua_browser }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td class="col-os">
+          {% if row.ua_os %}{{ row.ua_os }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td class="col-device">
+          {% if row.ua_device %}{{ row.ua_device }}{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        <td class="col-ua ua">
           {% if row.last_seen_ua %}
           <abbr title="{{ row.last_seen_ua }}">{{ row.last_seen_ua }}</abbr>
           {% else %}
           <span class="muted">—</span>
           {% endif %}
         </td>
-        <td class="num">{{ row.folders }}</td>
-        <td class="num">{{ row.decks }}</td>
+        <td class="col-folders num">{{ row.folders }}</td>
+        <td class="col-decks num">{{ row.decks }}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -67,6 +92,37 @@
   <p class="muted">No users yet.</p>
   {% endif %}
 </section>
+
+<script>
+(function () {
+  var panel = document.querySelector('[data-col-toggles]');
+  var table = document.querySelector('[data-users-table]');
+  if (!panel || !table) return;
+  var STORAGE_KEY = 'crazy-cram-admin-cols';
+  var saved;
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { saved = null; }
+
+  function applyCol(col, show) {
+    table.querySelectorAll('.col-' + col).forEach(function (el) {
+      el.classList.toggle('col-hidden', !show);
+    });
+  }
+
+  panel.querySelectorAll('input[data-col]').forEach(function (cb) {
+    var col = cb.getAttribute('data-col');
+    if (saved && typeof saved[col] === 'boolean') cb.checked = saved[col];
+    applyCol(col, cb.checked);
+    cb.addEventListener('change', function () {
+      applyCol(col, cb.checked);
+      var state = {};
+      panel.querySelectorAll('input[data-col]').forEach(function (c) {
+        state[c.getAttribute('data-col')] = c.checked;
+      });
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+    });
+  });
+})();
+</script>
 
 <section class="account-panel">
   <h2>Universal categories</h2>

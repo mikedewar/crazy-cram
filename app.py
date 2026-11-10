@@ -23,6 +23,7 @@ from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event, func, text
 from sqlalchemy.engine import Engine
+from user_agents import parse as parse_ua
 from wtforms import (
     StringField, PasswordField, SubmitField, TextAreaField,
     IntegerField, RadioField, SelectField, BooleanField, HiddenField,
@@ -2244,6 +2245,29 @@ def _require_admin():
         abort(404)
 
 
+def _summarise_ua(raw):
+    if not raw:
+        return {"browser": None, "os": None, "device": None}
+    ua = parse_ua(raw)
+    browser = ua.browser.family or None
+    if browser and ua.browser.version:
+        browser = f"{browser} {ua.browser.version[0]}"
+    os_name = ua.os.family or None
+    if os_name and ua.os.version:
+        os_name = f"{os_name} {'.'.join(str(p) for p in ua.os.version[:2])}"
+    if ua.is_bot:
+        device = "Bot"
+    elif ua.is_tablet:
+        device = f"Tablet · {ua.device.family}" if ua.device.family and ua.device.family != "Other" else "Tablet"
+    elif ua.is_mobile:
+        device = f"Mobile · {ua.device.family}" if ua.device.family and ua.device.family != "Other" else "Mobile"
+    elif ua.is_pc:
+        device = "Desktop"
+    else:
+        device = ua.device.family if ua.device.family and ua.device.family != "Other" else None
+    return {"browser": browser, "os": os_name, "device": device}
+
+
 @app.route("/admin")
 @login_required
 def admin():
@@ -2262,18 +2286,21 @@ def admin():
         db.session.query(Deck.user_id, func.count(Deck.id))
         .group_by(Deck.user_id).all()
     )
-    user_rows = [
-        {
+    user_rows = []
+    for u in users:
+        ua_bits = _summarise_ua(u.last_seen_ua)
+        user_rows.append({
             "username": u.username,
             "invite_code": invite_by_user.get(u.id),
             "last_seen_at": u.last_seen_at,
             "last_seen_ip": u.last_seen_ip,
             "last_seen_ua": u.last_seen_ua,
+            "ua_browser": ua_bits["browser"],
+            "ua_os": ua_bits["os"],
+            "ua_device": ua_bits["device"],
             "folders": folder_counts.get(u.id, 0),
             "decks": deck_counts.get(u.id, 0),
-        }
-        for u in users
-    ]
+        })
     categories = (
         UniversalCategory.query.order_by(
             UniversalCategory.sort_order.asc(), UniversalCategory.id.asc()
