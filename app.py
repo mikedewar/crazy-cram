@@ -9,7 +9,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify
+from flask import Flask, render_template, redirect, url_for, flash, request, abort, jsonify, session as flask_session
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_bcrypt import Bcrypt
 from flask_limiter import Limiter
@@ -1467,11 +1467,48 @@ class StudyConfigForm(FlaskForm):
     )
     order = RadioField(
         "Order",
-        choices=[("shuffle", "Shuffle"), ("created", "Creation order")],
+        choices=[
+            ("shuffle", "Shuffle"),
+            ("created", "Creation order"),
+            ("select", "Select specific questions"),
+        ],
         default="shuffle",
         validators=[DataRequired()],
     )
     submit = SubmitField("Start")
+
+
+def _pick_session_key(deck_id):
+    return f"study_pick:{deck_id}"
+
+
+def _get_picked_ids(deck_id):
+    """Return the user's current picked-card id list for `deck_id`, filtered
+    to ids that still exist and belong to this user's deck. Prunes stale ids."""
+    raw = flask_session.get(_pick_session_key(deck_id)) or []
+    if not raw:
+        return []
+    try:
+        wanted = [int(x) for x in raw]
+    except (TypeError, ValueError):
+        flask_session.pop(_pick_session_key(deck_id), None)
+        return []
+    if not wanted:
+        return []
+    rows = (
+        Card.query
+        .filter(Card.deck_id == deck_id, Card.id.in_(wanted))
+        .with_entities(Card.id)
+        .all()
+    )
+    live = {r[0] for r in rows}
+    cleaned = [i for i in wanted if i in live]
+    if cleaned != wanted:
+        if cleaned:
+            flask_session[_pick_session_key(deck_id)] = cleaned
+        else:
+            flask_session.pop(_pick_session_key(deck_id), None)
+    return cleaned
 
 
 def _owned_session_or_404(session_id):
@@ -1495,13 +1532,17 @@ def study_config(deck_id):
     learn_available = total >= LEARN_MIN_DECK_SIZE
 
     if total == 0:
+        flask_session.pop(_pick_session_key(deck.id), None)
         # No form / no Start button — the template shows a link to add cards.
         return render_template(
             "study_config.html", deck=deck, total=0, form=None,
             mc_available=False, learn_available=False,
             mc_min_deck_size=MC_MIN_DECK_SIZE,
             learn_min_deck_size=LEARN_MIN_DECK_SIZE,
+            picked_count=0,
         )
+
+    picked_ids = _get_picked_ids(deck.id)
 
     form = StudyConfigForm()
     if request.method == "GET":
@@ -1525,12 +1566,53 @@ def study_config(deck_id):
             return redirect(url_for("study_config", deck_id=deck.id))
 
         shuffled = form.order.data == "shuffle"
+        use_pick = form.order.data == "select"
+
+        # "Select specific questions" needs a non-empty saved pick for this
+        # deck. If the user chose this option without picking (or the picks
+        # got pruned), bounce them to the picker.
+        if use_pick:
+            if not picked_ids:
+                flash(
+                    "Pick at least one card before starting.",
+                    "error",
+                )
+                return redirect(url_for("study_pick", deck_id=deck.id))
+            picked_cards = [c for c in cards if c.id in set(picked_ids)]
+            if not picked_cards:
+                flash(
+                    "The cards you picked are no longer available.",
+                    "error",
+                )
+                flask_session.pop(_pick_session_key(deck.id), None)
+                return redirect(url_for("study_config", deck_id=deck.id))
+            # Keep picked order stable in deck order (created_at asc).
+            # Learn mode needs at least LEARN_MIN_DECK_SIZE picked cards —
+            # section 5 re-reviews only the picked subset, so going below
+            # the floor would make Learn trivially small.
+            if mode == "learn" and len(picked_cards) < LEARN_MIN_DECK_SIZE:
+                flash(
+                    f"Learn mode needs at least {LEARN_MIN_DECK_SIZE} picked cards.",
+                    "error",
+                )
+                return redirect(url_for("study_config", deck_id=deck.id))
+            # MC floor applies to the subset you're actually studying.
+            if mode == "mc" and len(picked_cards) < MC_MIN_DECK_SIZE:
+                flash(
+                    f"Multiple choice needs at least {MC_MIN_DECK_SIZE} picked cards.",
+                    "error",
+                )
+                return redirect(url_for("study_config", deck_id=deck.id))
 
         if mode == "learn":
-            # Learn always uses the whole deck in section 1; n_cards on the
-            # session row is the running total across all 5 sections and gets
-            # patched up as sections are composed. Start with section 1's size.
-            chosen = list(cards)
+            # Learn uses the whole deck in section 1, OR — when the user
+            # hand-picked — only the picked subset (sections 2–4 flow from
+            # section-1 results; section 5 rebuilds from the picked subset
+            # too, see _learn_compose_section).
+            if use_pick:
+                chosen = list(picked_cards)
+            else:
+                chosen = list(cards)
             if shuffled:
                 random.shuffle(chosen)
             s = StudySession(
@@ -1557,16 +1639,26 @@ def study_config(deck_id):
                 "study_session_start",
                 user_id=current_user.id, session_id=s.id,
                 deck_id=deck.id, n_cards=len(chosen), shuffled=shuffled, mode="learn",
+                picked=use_pick,
             )
+            # Session created — picks have served their purpose.
+            flask_session.pop(_pick_session_key(deck.id), None)
             return redirect(url_for("learn_section", session_id=s.id))
 
-        # Clamp requested count silently to what's actually available.
-        n = min(max(1, form.n_cards.data), total)
-
-        chosen = list(cards)
-        if shuffled:
-            random.shuffle(chosen)
-        chosen = chosen[:n]
+        if use_pick:
+            # n_cards is irrelevant when a subset is picked — the picker IS
+            # the size control. Clamp to the picked subset.
+            chosen = list(picked_cards)
+            if shuffled:
+                random.shuffle(chosen)
+            n = len(chosen)
+        else:
+            # Clamp requested count silently to what's actually available.
+            n = min(max(1, form.n_cards.data), total)
+            chosen = list(cards)
+            if shuffled:
+                random.shuffle(chosen)
+            chosen = chosen[:n]
 
         s = StudySession(
             user_id=current_user.id,
@@ -1590,7 +1682,9 @@ def study_config(deck_id):
             "study_session_start",
             user_id=current_user.id, session_id=s.id,
             deck_id=deck.id, n_cards=n, shuffled=shuffled, mode=mode,
+            picked=use_pick,
         )
+        flask_session.pop(_pick_session_key(deck.id), None)
         return redirect(url_for("study_session", session_id=s.id))
 
     return render_template(
@@ -1598,7 +1692,57 @@ def study_config(deck_id):
         mc_available=mc_available, learn_available=learn_available,
         mc_min_deck_size=MC_MIN_DECK_SIZE,
         learn_min_deck_size=LEARN_MIN_DECK_SIZE,
+        picked_count=len(picked_ids),
     )
+
+
+@app.route("/decks/<int:deck_id>/study/pick", methods=["GET", "POST"])
+@login_required
+def study_pick(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    cards = (
+        Card.query.filter_by(deck_id=deck.id)
+        .order_by(Card.created_at.asc(), Card.id.asc())
+        .all()
+    )
+    if not cards:
+        flash("This deck has no cards to pick from.", "error")
+        return redirect(url_for("study_config", deck_id=deck.id))
+
+    if request.method == "POST":
+        raw = request.form.getlist("card_ids")
+        try:
+            wanted = {int(x) for x in raw}
+        except (TypeError, ValueError):
+            wanted = set()
+        chosen_ids = [c.id for c in cards if c.id in wanted]
+        if not chosen_ids:
+            flash("Pick at least one card.", "error")
+            # Re-render picker; nothing saved, nothing cleared.
+            return render_template(
+                "study_pick.html", deck=deck, cards=cards,
+                picked_set=set(),
+            )
+        flask_session[_pick_session_key(deck.id)] = chosen_ids
+        return redirect(url_for("study_config", deck_id=deck.id))
+
+    picked_set = set(_get_picked_ids(deck.id))
+    # First-time picker visit (nothing saved yet): pre-tick everything so
+    # "Deselect all" is the one-click path to "study a few".
+    if not picked_set:
+        picked_set = {c.id for c in cards}
+    return render_template(
+        "study_pick.html", deck=deck, cards=cards,
+        picked_set=picked_set,
+    )
+
+
+@app.route("/decks/<int:deck_id>/study/pick/clear", methods=["POST"])
+@login_required
+def study_pick_clear(deck_id):
+    deck = _owned_deck_or_404(deck_id)
+    flask_session.pop(_pick_session_key(deck.id), None)
+    return redirect(url_for("study_config", deck_id=deck.id))
 
 
 def _next_unanswered(session):
@@ -1974,14 +2118,21 @@ def _learn_compose_section(session, section):
     elif section == 4:
         ids = sorted(set(_learn_card_ids_wrong_in(session, [2, 3])))
     elif section == 5:
-        ids = [c.id for c in Card.query.filter_by(deck_id=deck_id)
-               .order_by(Card.created_at.asc(), Card.id.asc()).all()]
+        # Review-all: review whatever was picked for this session (section 1).
+        # When the user started Learn on the whole deck this is every card;
+        # when they picked a subset it's that subset.
+        sec1_ids = (
+            db.session.query(StudyAttempt.card_id)
+            .filter(StudyAttempt.session_id == session.id,
+                    StudyAttempt.section == 1,
+                    StudyAttempt.card_id.isnot(None))
+            .distinct()
+            .all()
+        )
+        ids = [r[0] for r in sec1_ids]
     else:
         return
-    cards = _learn_cards_by_ids(deck_id, ids) if section != 5 else (
-        Card.query.filter_by(deck_id=deck_id)
-        .order_by(Card.created_at.asc(), Card.id.asc()).all()
-    )
+    cards = _learn_cards_by_ids(deck_id, ids)
     _learn_attempts_for_cards(session, cards, section)
     # Keep n_cards in sync so results-page totals stay honest.
     total = (

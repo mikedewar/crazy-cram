@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.15.0 — 2026-11-22
+
+**Select specific questions.** The order radios on `/study` now
+include a third option: _Select specific questions_. Choosing
+it reveals a "Choose cards →" link that opens a dedicated picker
+page — one checkbox per card (laid out like `/cards`), with
+_Select all_ / _Deselect all_ toolbar buttons and a _Confirm_
+button at the bottom. Confirming returns to `/study` where the
+third radio label grows an "(N cards picked)" summary; _Clear
+picks_ resets it. Start then runs the session on just the picks
+— works in Written, Multiple choice, Flashcards and Learn.
+Learn mode section 5 (review-all) also honours the pick, so a
+hand-chosen subset doesn't leak back to the whole deck at the
+end. MC and Learn still enforce their minimum-size floors on
+the picked subset. Picks live in the Flask session, are pruned
+if a card is deleted mid-flight, and clear once a session
+starts.
+
 ## v1.14.0 — 2026-11-10
 
 **Shape-aware MC distractors.** The multiple-choice option picker

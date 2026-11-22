@@ -41,31 +41,51 @@
     {% for e in form.mode.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </fieldset>
   {# Learn always uses the whole deck in §1 — n_cards is irrelevant. #}
+  {# Pick-subset also ignores n_cards — the picker IS the size control. #}
   <p id="n-cards-field">
     {{ form.n_cards.label }}<br>
     {{ form.n_cards(type="text", inputmode="numeric", pattern="[0-9]*", min=1, max=total, autofocus=True) }}
     {% for e in form.n_cards.errors %}<span class="err">{{ e }}</span>{% endfor %}
   </p>
-  <script>
-    (function () {
-      var field = document.getElementById('n-cards-field');
-      var radios = document.querySelectorAll('input[name="mode"]');
-      function sync() {
-        var sel = document.querySelector('input[name="mode"]:checked');
-        var hide = sel && sel.value === 'learn';
-        field.style.display = hide ? 'none' : '';
-      }
-      radios.forEach(function (r) { r.addEventListener('change', sync); });
-      sync();
-    })();
-  </script>
   <fieldset class="radio-group">
     <legend>{{ form.order.label.text }}</legend>
     {% for sub in form.order %}
-      <label class="radio">{{ sub }} {{ sub.label.text }}</label>
+      <label class="radio">
+        {{ sub }} {{ sub.label.text }}
+        {% if sub.data == 'select' and picked_count %}
+        <span class="muted">({{ picked_count }} card{{ '' if picked_count == 1 else 's' }} picked)</span>
+        {% endif %}
+      </label>
     {% endfor %}
     {% for e in form.order.errors %}<span class="err">{{ e }}</span>{% endfor %}
+    <p id="pick-actions" class="pick-actions">
+      <a class="btn-secondary" href="{{ url_for('study_pick', deck_id=deck.id) }}">
+        {% if picked_count %}Change picks{% else %}Choose cards →{% endif %}
+      </a>
+      {% if picked_count %}
+      <button type="submit" formaction="{{ url_for('study_pick_clear', deck_id=deck.id) }}" formnovalidate class="btn-link">Clear picks</button>
+      {% endif %}
+    </p>
   </fieldset>
+  <script>
+    (function () {
+      var ncards = document.getElementById('n-cards-field');
+      var pickActions = document.getElementById('pick-actions');
+      var modes = document.querySelectorAll('input[name="mode"]');
+      var orders = document.querySelectorAll('input[name="order"]');
+      function sync() {
+        var mode = document.querySelector('input[name="mode"]:checked');
+        var order = document.querySelector('input[name="order"]:checked');
+        var isLearn = mode && mode.value === 'learn';
+        var isSelect = order && order.value === 'select';
+        ncards.style.display = (isLearn || isSelect) ? 'none' : '';
+        pickActions.style.display = isSelect ? '' : 'none';
+      }
+      modes.forEach(function (r) { r.addEventListener('change', sync); });
+      orders.forEach(function (r) { r.addEventListener('change', sync); });
+      sync();
+    })();
+  </script>
   <p>{{ form.submit }}</p>
 </form>
 {% endif %}
